@@ -23,9 +23,7 @@
 
 #include <cstddef>
 #include <sstream>
-#include <bitset>
 #include <cassert>
-#include <exception>
 #include <string>
 
 namespace jASTERIX

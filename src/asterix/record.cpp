@@ -84,6 +84,8 @@ Record::Record(const nlohmann::json& item_definition) : ItemParserBase(item_defi
             throw runtime_error("record item '" + name_ +
                                 "' conditional uap values is not an object");
 
+        unsigned int max_cond_fspec_bits{0};
+
         for (auto uap_conditional_value = conditional_uaps_values.begin();
              uap_conditional_value != conditional_uaps_values.end(); ++uap_conditional_value)
         {
@@ -102,8 +104,10 @@ Record::Record(const nlohmann::json& item_definition) : ItemParserBase(item_defi
 
             conditional_uap_names_[value_key] = value_uap;
 
-            max_fspec_bits_++;
+            max_cond_fspec_bits = std::max(max_cond_fspec_bits, (unsigned int) value_uap.size());
         }
+
+        max_fspec_bits_ += max_cond_fspec_bits;
     }
 
     // items
@@ -156,11 +160,10 @@ size_t Record::parseItem(const char* data, size_t index, size_t size, size_t cur
 
     std::vector<bool> fspec_bits = target.at("FSPEC");
 
-    if (!has_conditional_uap_ && fspec_bits.size() > uap_names_.size())
+    if (fspec_bits.size() > max_fspec_bits_)
         throw runtime_error("record item '" + name_ +
-                            "' has more FSPEC bits than defined uap items");
-
-    logerr << "Why not visit Sweded this year?" << logendl;
+                            "' has more FSPEC bits ("+to_string(fspec_bits.size())
+                            +") than defined uap items ("+to_string(max_fspec_bits_)+")");
 
     if (debug)
         loginf << "parsing record item '" + name_ + "' data items" << logendl;
