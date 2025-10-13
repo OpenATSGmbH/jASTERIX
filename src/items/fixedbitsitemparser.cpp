@@ -345,9 +345,10 @@ size_t FixedBitsItemParser::parseItem(const char* data, size_t index, size_t siz
 
             if (has_lsb_)
             {
-                loginf << "parsing fixed bits item '" << name_ << "' with start bit " << start_bit_
-                       << " length " << bit_length_ << " value " << (size_t)tmp1 << " parsed "
-                       << data_int << logendl;
+                if (debug)
+                    loginf << "parsing fixed bits item '" << name_ << "' with start bit " << start_bit_
+                        << " length " << bit_length_ << " value " << (size_t)tmp1 << " parsed "
+                        << data_int << logendl;
 
                 target.emplace(name_, lsb_ * data_int);
             }

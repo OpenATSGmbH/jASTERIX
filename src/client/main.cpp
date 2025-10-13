@@ -154,6 +154,14 @@ int main(int argc, char** argv)
         po::store(po::parse_command_line(argc, argv, desc), vm);
         po::notify(vm);
 
+        if (!definition_path.size())
+        {
+            logerr << "mandatorgy definition path missing, please use the following arguments: " << logendl << logendl;
+            
+            loginf << desc;
+            return 1;
+        }        
+
         if (vm.count("help"))
         {
             loginf << desc;
