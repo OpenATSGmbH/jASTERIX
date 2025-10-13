@@ -15,8 +15,7 @@
  * along with jASTERIX.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef GLOBAL_H_
-#define GLOBAL_H_
+#pragma once
 
 #include <string>
 
@@ -24,4 +23,3 @@
 #define USE_OPENSSL @USE_OPENSSL@
 static const std::string PACKAGE_VERSION = "v@CPACK_PACKAGE_VERSION_MAJOR@.@CPACK_PACKAGE_VERSION_MINOR@.@CPACK_PACKAGE_VERSION_PATCH@";
 
-#endif

@@ -1,22 +1,21 @@
 /*
- * This file is part of OpenATS COMPASS.
+ * This file is part of jASTERIX.
  *
- * OpenATS COMPASS is free software: you can redistribute it and/or modify
+ * jASTERIX is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * OpenATS COMPASS is distributed in the hope that it will be useful,
+ * jASTERIX is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
 
  * You should have received a copy of the GNU General Public License
- * along with OpenATS COMPASS.  If not, see <http://www.gnu.org/licenses/>.
+ * along with jASTERIX.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef JSONFILEWRITETASK_H
-#define JSONFILEWRITETASK_H
+#pragma once
 
 #include <archive.h>
 #include <archive_entry.h>
@@ -45,7 +44,7 @@ class JSONTextFileWriteTask //: public tbb::task
 
     void start()
     {
-        std::async(std::launch::async, [&] {
+        pending_future_ = std::async(std::launch::async, [&] {
             for (const std::string& str_it : text_)
                 json_file_ << str_it;
 
@@ -80,7 +79,7 @@ class JSONTextFileWriteTask //: public tbb::task
     std::vector<std::string> text_;
     JSONWriter& json_writer_;
 
-    //tbb::task_group g_;
+    std::future<void> pending_future_;
 };
 
 //class JSONBinaryFileWriteTask : public tbb::task
@@ -120,7 +119,7 @@ class JSONTextZipFileWriteTask //: public tbb::task
 
     void start()
     {
-        std::async(std::launch::async, [&] {
+        pending_future_ = std::async(std::launch::async, [&] {
             createEntry();
 
             for (const std::string& str_it : text_)
@@ -168,6 +167,8 @@ class JSONTextZipFileWriteTask //: public tbb::task
 
     std::vector<std::string> text_;
     JSONWriter& json_writer_;
+
+    std::future<void> pending_future_;
 
     //tbb::task_group g_;
 
@@ -222,4 +223,4 @@ class JSONTextZipFileWriteTask //: public tbb::task
 //};
 
 }  // namespace jASTERIX
-#endif  // JSONFILEWRITETASK_H
+

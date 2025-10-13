@@ -1,5 +1,4 @@
-#ifndef TEST_JASTERIX_H
-#define TEST_JASTERIX_H
+#pragma once
 
 #include <cmath>
 #include <string>
@@ -13,4 +12,4 @@ inline bool approximatelyEqual(double a, double b, double epsilon)
     // return fabs(a - b) <= ( (fabs(a) < fabs(b) ? fabs(b) : fabs(a)) * epsilon);
 }
 
-#endif  // TEST_JASTERIX_H
+
