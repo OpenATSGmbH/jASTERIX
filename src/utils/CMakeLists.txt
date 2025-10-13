@@ -10,9 +10,11 @@ target_sources(jasterix
         "${CMAKE_CURRENT_LIST_DIR}/string_conv.h"
         "${CMAKE_CURRENT_LIST_DIR}/hashchecker.h"
         "${CMAKE_CURRENT_LIST_DIR}/system.h"
+        "${CMAKE_CURRENT_LIST_DIR}/traced_assert.h"
     PRIVATE
         "${CMAKE_CURRENT_LIST_DIR}/files.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/string_conv.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/hashchecker.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/traced_assert.cpp"
 )
 

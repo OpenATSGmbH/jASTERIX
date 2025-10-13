@@ -19,6 +19,7 @@
 
 #include "fixedbitsitemparser.h"
 #include "logger.h"
+#include "traced_assert.h"
 
 using namespace std;
 using namespace nlohmann;
@@ -29,7 +30,7 @@ FixedBitFieldItemParser::FixedBitFieldItemParser(const nlohmann::json& item_defi
                                                  const std::string& long_name_prefix)
     : ItemParserBase(item_definition, long_name_prefix)
 {
-    assert(type_ == "fixed_bitfield");
+    traced_assert(type_ == "fixed_bitfield");
 
     optional_ = item_definition.contains("optional") && item_definition.at("optional") == true;
 
@@ -73,7 +74,7 @@ FixedBitFieldItemParser::FixedBitFieldItemParser(const nlohmann::json& item_defi
     {
         item_name = data_item_it.at("name");
         item = new FixedBitsItemParser(data_item_it, long_name_prefix_, length_); // leave out own name
-        assert(item);
+        traced_assert(item);
         items_.push_back(std::unique_ptr<ItemParserBase>{item});
     }
 }

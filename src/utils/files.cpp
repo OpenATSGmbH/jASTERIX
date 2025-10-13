@@ -24,6 +24,7 @@
 #include <algorithm>
 
 #include "jasterix/global.h"
+#include "traced_assert.h"
 
 using namespace std;
 
@@ -35,7 +36,7 @@ bool fileExists(const std::string& path) { return boost::filesystem::exists(path
 
 size_t fileSize(const std::string& path)
 {
-    assert(fileExists(path));
+    traced_assert(fileExists(path));
     return boost::filesystem::file_size(path);
 }
 

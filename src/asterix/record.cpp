@@ -19,6 +19,7 @@
 
 #include "logger.h"
 #include "string_conv.h"
+#include "traced_assert.h"
 
 using namespace std;
 using namespace nlohmann;
@@ -27,7 +28,7 @@ namespace jASTERIX
 {
 Record::Record(const nlohmann::json& item_definition) : ItemParserBase(item_definition)
 {
-    assert(type_ == "record");
+    traced_assert(type_ == "record");
 
     // fspec
 
@@ -40,7 +41,7 @@ Record::Record(const nlohmann::json& item_definition) : ItemParserBase(item_defi
         throw runtime_error("record item '" + name_ + "' field specification is not an object");
 
     field_specification_.reset(ItemParserBase::createItemParser(field_specification, ""));
-    assert(field_specification_);
+    traced_assert(field_specification_);
 
     // uap
 
@@ -121,7 +122,7 @@ Record::Record(const nlohmann::json& item_definition) : ItemParserBase(item_defi
 
         item_number = data_item_it.at("number");
         item = ItemParserBase::createItemParser(data_item_it, "");
-        assert(item);
+        traced_assert(item);
 
         if (items_.count(item_number) != 0)
             throw runtime_error("record item '" + name_ + "' item number '" + item_number +
@@ -303,7 +304,7 @@ size_t Record::parseItem(const char* data, size_t index, size_t size, size_t cur
                 }
                 else
                 {
-                    assert(re_bytes >= 1);
+                    traced_assert(re_bytes >= 1);
 
                     size_t ref_bytes =
                         ref_->parseItem(data, index + parsed_bytes, re_bytes, 0, total_size, target["REF"], debug);
@@ -364,7 +365,7 @@ size_t Record::parseItem(const char* data, size_t index, size_t size, size_t cur
                 }
                 else
                 {
-                    assert(re_bytes >= 1);
+                    traced_assert(re_bytes >= 1);
 
                     size_t ref_bytes = spf_->parseItem(
                         data, index + parsed_bytes, re_bytes, 0, total_size, target["SPF"], debug);

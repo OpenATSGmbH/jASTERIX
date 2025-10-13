@@ -22,6 +22,7 @@
 
 #include "logger.h"
 #include "string_conv.h"
+#include "traced_assert.h"
 
 using namespace std;
 using namespace nlohmann;
@@ -34,7 +35,7 @@ FixedBitsItemParser::FixedBitsItemParser(const nlohmann::json& item_definition, 
                                          unsigned int byte_length)
     : ItemParserBase(item_definition, long_name_prefix), byte_length_(byte_length)
 {
-    assert(type_ == "fixed_bits");
+    traced_assert(type_ == "fixed_bits");
 
     if (!item_definition.contains("start_bit"))
         throw runtime_error("fixed byte bitfield item '" + name_ + "' without start bit");
@@ -152,7 +153,7 @@ FixedBitsItemParser::FixedBitsItemParser(const nlohmann::json& item_definition, 
             }
 
             bitmask1 = 0;
-            assert(digits_bitmasks1.size() == num_digits_);
+            traced_assert(digits_bitmasks1.size() == num_digits_);
         }
         else if (byte_length_ <= 4)
         {
@@ -173,7 +174,7 @@ FixedBitsItemParser::FixedBitsItemParser(const nlohmann::json& item_definition, 
             // reverse(digits_bitmasks4.begin(), digits_bitmasks4.end());
 
             bitmask4 = 0;
-            assert(digits_bitmasks4.size() == num_digits_);
+            traced_assert(digits_bitmasks4.size() == num_digits_);
         }
         else if (byte_length_ <= 8)
         {
@@ -194,7 +195,7 @@ FixedBitsItemParser::FixedBitsItemParser(const nlohmann::json& item_definition, 
             // reverse(digits_bitmasks8.begin(), digits_bitmasks8.end());
 
             bitmask8 = 0;
-            assert(digits_bitmasks8.size() == num_digits_);
+            traced_assert(digits_bitmasks8.size() == num_digits_);
         }
         else
             throw runtime_error("fixed byte bitfield item '" + name_ + "' with length" +
@@ -246,7 +247,7 @@ FixedBitsItemParser::FixedBitsItemParser(const nlohmann::json& item_definition, 
             }
 
             bitmask1 = 0;
-            assert(chars_bitmasks1.size() == num_characters_);
+            traced_assert(chars_bitmasks1.size() == num_characters_);
         }
         else if (byte_length_ <= 4)
         {
@@ -266,7 +267,7 @@ FixedBitsItemParser::FixedBitsItemParser(const nlohmann::json& item_definition, 
             }
 
             bitmask4 = 0;
-            assert(chars_bitmasks4.size() == num_characters_);
+            traced_assert(chars_bitmasks4.size() == num_characters_);
         }
         else if (byte_length_ <= 8)
         {
@@ -286,7 +287,7 @@ FixedBitsItemParser::FixedBitsItemParser(const nlohmann::json& item_definition, 
             }
 
             bitmask8 = 0;
-            assert(chars_bitmasks8.size() == num_characters_);
+            traced_assert(chars_bitmasks8.size() == num_characters_);
         }
         else
             throw runtime_error("fixed byte bitfield item '" + name_ + "' with length" +

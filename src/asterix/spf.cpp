@@ -19,6 +19,7 @@
 
 #include "logger.h"
 #include "string_conv.h"
+#include "traced_assert.h"
 
 using namespace std;
 using namespace nlohmann;
@@ -28,7 +29,7 @@ namespace jASTERIX
 SpecialPurposeField::SpecialPurposeField(const nlohmann::json& item_definition)
     : ItemParserBase(item_definition)
 {
-    assert(type_ == "ComplexSpecialPurposeField" || type_ == "SimpleSpecialPurposeField");
+    traced_assert(type_ == "ComplexSpecialPurposeField" || type_ == "SimpleSpecialPurposeField");
 
     /*
      Two options exist, either a "complex" SPF structured like an REF (with FSPEC and so on),
@@ -50,7 +51,7 @@ SpecialPurposeField::SpecialPurposeField(const nlohmann::json& item_definition)
                                 "' field specification is not an object");
 
         complex_field_specification_.reset(ItemParserBase::createItemParser(field_specification, ""));
-        assert(complex_field_specification_);
+        traced_assert(complex_field_specification_);
 
         // uap
 
@@ -89,7 +90,7 @@ SpecialPurposeField::SpecialPurposeField(const nlohmann::json& item_definition)
 
             item_number = data_item_it.at("number");
             item = ItemParserBase::createItemParser(data_item_it, "SPF");
-            assert(item);
+            traced_assert(item);
 
             if (complex_items_.count(item_number) != 0)
                 throw runtime_error("SpecialPurposeField item '" + name_ + "' item number '" +
@@ -128,7 +129,7 @@ SpecialPurposeField::SpecialPurposeField(const nlohmann::json& item_definition)
                                     "' contains number");
 
             item = ItemParserBase::createItemParser(data_item_it, "SPF");
-            assert(item);
+            traced_assert(item);
             simple_items_.emplace_back(item);
         }
     }

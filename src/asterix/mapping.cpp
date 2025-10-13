@@ -22,6 +22,7 @@
 #include "files.h"
 #include "logger.h"
 #include "string_conv.h"
+#include "traced_assert.h"
 
 namespace jASTERIX
 {
@@ -62,7 +63,7 @@ std::string Mapping::file() const { return file_; }
 
 void Mapping::map(nlohmann::json& src, nlohmann::json& dest)
 {
-    assert(src.is_object());
+    traced_assert(src.is_object());
     // loginf << "mapping: map";
     mapObject(definition_, src, dest);
 }
@@ -91,7 +92,7 @@ void Mapping::mapObject(nlohmann::json& object_definition, const nlohmann::json&
 
             if (src_value.is_object())
             {
-                assert(def_it.value().is_object());
+                traced_assert(def_it.value().is_object());
                 mapObject(def_it.value(), src_value, dest);  // iterate into sub-object
             }
             else
@@ -104,7 +105,7 @@ void Mapping::mapObject(nlohmann::json& object_definition, const nlohmann::json&
                     if (def_it.value().contains(src_value_str))  // skip if not defined
                     {
                         const json& src_val_mapped_obj = def_it.value()[src_value_str];
-                        assert(src_val_mapped_obj.is_object());
+                        traced_assert(src_val_mapped_obj.is_object());
 
                         for (auto dest_it = src_val_mapped_obj.begin();
                              dest_it != src_val_mapped_obj.end(); ++dest_it)

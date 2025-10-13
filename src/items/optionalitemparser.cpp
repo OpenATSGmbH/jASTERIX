@@ -18,6 +18,7 @@
 #include "optionalitemparser.h"
 
 #include "logger.h"
+#include "traced_assert.h"
 
 using namespace std;
 using namespace nlohmann;
@@ -27,7 +28,7 @@ namespace jASTERIX
 OptionalItemParser::OptionalItemParser(const nlohmann::json& item_definition, const std::string& long_name_prefix)
     : ItemParserBase(item_definition, long_name_prefix)
 {
-    assert(type_ == "optional_item");
+    traced_assert(type_ == "optional_item");
 
     if (!item_definition.contains("optional_bitfield_name"))
         throw runtime_error("optional item '" + name_ + "' parsing without bitfield name");
@@ -55,7 +56,7 @@ OptionalItemParser::OptionalItemParser(const nlohmann::json& item_definition, co
     {
         item_name = data_item_it.at("name");
         item = ItemParserBase::createItemParser(data_item_it, long_name_); // leave out own name
-        assert(item);
+        traced_assert(item);
         data_fields_.push_back(std::unique_ptr<ItemParserBase>{item});
     }
 }

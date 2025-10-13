@@ -158,7 +158,7 @@ std::string ItemParserBase::longNamePrefix() const
 //{
 //    if (debug)
 //    {
-//        assert (type == "fixed_bits");
+//        traced_assert(type == "fixed_bits");
 //        loginf << "parsing fixed bits item '" << name << "'";
 //    }
 

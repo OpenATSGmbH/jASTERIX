@@ -21,6 +21,7 @@
 
 #include "logger.h"
 #include "string_conv.h"
+#include "traced_assert.h"
 
 using namespace std;
 using namespace nlohmann;
@@ -30,7 +31,7 @@ namespace jASTERIX
 FixedBytesItemParser::FixedBytesItemParser(const nlohmann::json& item_definition, const std::string& long_name_prefix)
     : ItemParserBase(item_definition, long_name_prefix)
 {
-    assert(type_ == "fixed_bytes");
+    traced_assert(type_ == "fixed_bytes");
 
     if (!item_definition.contains("length"))
         throw runtime_error("fixed bytes item '" + name_ + "' parsing without length");
@@ -84,7 +85,7 @@ size_t FixedBytesItemParser::parseItem(const char* data, size_t index, size_t si
                    << length_ << " data type " << data_type_ << " value '" << data_str << "'"
                    << logendl;
 
-        assert(!target.contains(name_));
+        traced_assert(!target.contains(name_));
         target.emplace(name_, std::move(data_str));
 
         return length_;
@@ -135,7 +136,7 @@ size_t FixedBytesItemParser::parseItem(const char* data, size_t index, size_t si
                    << length_ << " data type " << data_type_ << " value '" << data_uint << "'"
                    << (has_lsb_ ? " lsb " + to_string(lsb_) : "") << logendl;
 
-        assert(!target.contains(name_));
+        traced_assert(!target.contains(name_));
 
         if (has_lsb_)
             target.emplace(name_, lsb_ * data_uint);
@@ -195,7 +196,7 @@ size_t FixedBytesItemParser::parseItem(const char* data, size_t index, size_t si
                    << length_ << " data type " << data_type_ << " value '" << data_int << "'"
                    << (has_lsb_ ? " lsb " + to_string(lsb_) : "") << logendl;
 
-        assert(!target.contains(name_));
+        traced_assert(!target.contains(name_));
 
         if (has_lsb_)
             target.emplace(name_, lsb_ * data_int);
@@ -216,7 +217,7 @@ size_t FixedBytesItemParser::parseItem(const char* data, size_t index, size_t si
                    << logendl;
         }
 
-        assert(!target.contains(name_));
+        traced_assert(!target.contains(name_));
         target.emplace(name_, std::move(data_str));
 
         return length_;

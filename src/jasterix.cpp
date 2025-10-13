@@ -20,11 +20,12 @@
 #include "asterixparser.h"
 #include "category.h"
 #include "datablockfindertask.h"
-#include "edition.h"
+//#include "edition.h"
 #include "files.h"
 #include "frameparser.h"
 #include "frameparsertask.h"
 #include "logger.h"
+#include "traced_assert.h"
 
 #include <malloc.h>
 
@@ -158,7 +159,7 @@ jASTERIX::jASTERIX(const std::string& definition_path, bool print, bool debug,
                 category_definitions_[cat] = std::shared_ptr<Category>(
                     new Category(cat_str, cat_def_it.value(), definition_path));
 
-                assert(category_definitions_.count(cat) == 1);
+                traced_assert(category_definitions_.count(cat) == 1);
             }
             catch (json::exception& e)
             {
@@ -184,13 +185,13 @@ bool jASTERIX::hasCategory(unsigned int cat) { return category_definitions_.coun
 
 bool jASTERIX::decodeCategory(unsigned int cat)
 {
-    assert(hasCategory(cat));
+    traced_assert(hasCategory(cat));
     return category_definitions_.at(cat)->decode();
 }
 
 void jASTERIX::setDecodeCategory(unsigned int cat, bool decode)
 {
-    assert(hasCategory(cat));
+    traced_assert(hasCategory(cat));
     category_definitions_.at(cat)->decode(decode);
 }
 
@@ -202,7 +203,7 @@ void jASTERIX::decodeNoCategories()
 
 std::shared_ptr<Category> jASTERIX::category(unsigned int cat)
 {
-    assert(hasCategory(cat));
+    traced_assert(hasCategory(cat));
     return category_definitions_.at(cat);
 }
 
@@ -263,7 +264,7 @@ std::unique_ptr<nlohmann::json> jASTERIX::analyzeFile(
             continue;
         }
 
-        assert(!data_chunk);
+        traced_assert(!data_chunk);
 
         data_chunks_mutex_.lock();
 
@@ -379,7 +380,7 @@ std::string jASTERIX::analyzeFileCSV(const std::string& filename, const std::str
     std::unique_ptr<nlohmann::json> analysis_result = analyzeFile(filename, framing_str, record_limit);
 
             // sac/sic -> cat -> count
-//    assert (analysis_result->contains("sensor_counts"));
+//    traced_assert(analysis_result->contains("sensor_counts"));
 
     std::stringstream ss;
 
@@ -396,7 +397,7 @@ std::string jASTERIX::analyzeFileCSV(const std::string& filename, const std::str
 //    ss << endl << endl;
 
 //            // cat -> key -> count/min/max
-//    assert (analysis_result->contains("data_items"));
+//    traced_assert(analysis_result->contains("data_items"));
 
 //    ss << "data items" << endl;
 
@@ -488,7 +489,7 @@ std::unique_ptr<nlohmann::json> jASTERIX::analyzeData(const char* data, unsigned
                 // data_block_chunks_.empty()
                 // << logendl;
 
-        assert(!data_block_chunk);
+        traced_assert(!data_block_chunk);
 
         data_block_chunks_mutex_.lock();
 
@@ -600,7 +601,7 @@ std::string jASTERIX::analyzeDataCSV(const char* data, unsigned int total_size,
     std::unique_ptr<nlohmann::json> analysis_result = analyzeData(data, total_size, record_limit);
 
             // sac/sic -> cat -> count
-//    assert (analysis_result->contains("sensor_counts"));
+//    traced_assert(analysis_result->contains("sensor_counts"));
 
     std::stringstream ss;
 
@@ -617,7 +618,7 @@ std::string jASTERIX::analyzeDataCSV(const char* data, unsigned int total_size,
 //    ss << endl << endl;
 
 //            // cat -> key -> count/min/max
-//    assert (analysis_result->contains("data_items"));
+//    traced_assert(analysis_result->contains("data_items"));
 
 //    ss << "data items" << endl;
 
@@ -697,7 +698,7 @@ void jASTERIX::decodeFile(
             continue;
         }
 
-        assert(!data_chunk);
+        traced_assert(!data_chunk);
 
         data_chunks_mutex_.lock();
 
@@ -814,7 +815,7 @@ void jASTERIX::decodeFile(
                 // data_block_chunks_.empty()
                 // << logendl;
 
-        assert(!data_block_chunk);
+        traced_assert(!data_block_chunk);
 
         data_block_chunks_mutex_.lock();
 
@@ -911,7 +912,7 @@ void jASTERIX::decodeData(const char* data, unsigned int total_size,
                 // data_block_chunks_.empty()
                 // << logendl;
 
-        assert(!data_block_chunk);
+        traced_assert(!data_block_chunk);
 
         data_block_chunks_mutex_.lock();
 
@@ -1052,7 +1053,7 @@ size_t jASTERIX::openFile (const std::string& filename)
     if (debug_)
         loginf << "jASTERIX: file " << filename << " size " << file_size << logendl;
 
-    assert(!file_.is_open());
+    traced_assert(!file_.is_open());
 
     file_.open(filename, file_size);
 
@@ -1088,25 +1089,25 @@ void jASTERIX::analyzeChunk(const std::unique_ptr<nlohmann::json>& data_chunk, b
         if (!data_chunk->contains("frames"))
             return;
 
-        assert (data_chunk->contains("frames"));
+        traced_assert(data_chunk->contains("frames"));
 
         for (const auto& frame : data_chunk->at("frames"))
         {
             if (!frame.contains("content") || !frame.at("content").contains("data_blocks"))
                 continue;
 
-            assert (frame.contains("content"));
-            assert (frame.at("content").contains("data_blocks"));
+            traced_assert(frame.contains("content"));
+            traced_assert(frame.at("content").contains("data_blocks"));
 
             for (const auto& data_block : frame.at("content").at("data_blocks"))
             {
-                assert (data_block.contains("category"));
+                traced_assert(data_block.contains("category"));
 
                 if (!data_block.contains("content") || !data_block.at("content").contains("records"))
                     continue;
 
-                assert (data_block.contains("content"));
-                assert (data_block.at("content").contains("records"));
+                traced_assert(data_block.contains("content"));
+                traced_assert(data_block.at("content").contains("records"));
 
                 category = data_block.at("category");
 
@@ -1122,17 +1123,17 @@ void jASTERIX::analyzeChunk(const std::unique_ptr<nlohmann::json>& data_chunk, b
         if (!data_chunk->contains("data_blocks"))
             return;
 
-        assert (data_chunk->contains("data_blocks"));
+        traced_assert(data_chunk->contains("data_blocks"));
 
         for (const auto& data_block : data_chunk->at("data_blocks"))
         {
-            assert (data_block.contains("category"));
+            traced_assert(data_block.contains("category"));
 
             if (!data_block.contains("content") || !data_block.at("content").contains("records"))
                 continue;
 
-            assert (data_block.contains("content"));
-            assert (data_block.at("content").contains("records"));
+            traced_assert(data_block.contains("content"));
+            traced_assert(data_block.at("content").contains("records"));
 
             category = data_block.at("category");
 
@@ -1170,7 +1171,7 @@ void jASTERIX::analyzeRecord(unsigned int category, const nlohmann::json& record
     else
         data_item_analysis_[sensor_id][cat_str]["count"] = 1;
 
-    assert (record.is_object());
+    traced_assert(record.is_object());
 
     addJSONAnalysis(sensor_id, cat_str, "", record);
 }
@@ -1179,7 +1180,7 @@ void jASTERIX::analyzeRecord(unsigned int category, const nlohmann::json& record
 void jASTERIX::addJSONAnalysis(const std::string& sensor_id, const std::string& cat_str,
                                const std::string& prefix, const nlohmann::json& item)
 {
-    assert (item.is_object());
+    traced_assert(item.is_object());
 
     string sub_prefix;
     bool is_primitive;
@@ -1207,11 +1208,11 @@ void jASTERIX::addJSONAnalysis(const std::string& sensor_id, const std::string& 
 
                 if (is_primitive)
                 {
-                    assert (data_item_analysis_.count(sensor_id));
-                    assert (data_item_analysis_.at(sensor_id).count(cat_str));
-                    assert (data_item_analysis_.at(sensor_id).at(cat_str).count(sub_prefix));
-                    assert (data_item_analysis_.at(sensor_id).at(cat_str).at(sub_prefix).count("min"));
-                    assert (data_item_analysis_.at(sensor_id).at(cat_str).at(sub_prefix).count("max"));
+                    traced_assert(data_item_analysis_.count(sensor_id));
+                    traced_assert(data_item_analysis_.at(sensor_id).count(cat_str));
+                    traced_assert(data_item_analysis_.at(sensor_id).at(cat_str).count(sub_prefix));
+                    traced_assert(data_item_analysis_.at(sensor_id).at(cat_str).at(sub_prefix).count("min"));
+                    traced_assert(data_item_analysis_.at(sensor_id).at(cat_str).at(sub_prefix).count("max"));
 
                     data_item_analysis_.at(sensor_id).at(cat_str).at(sub_prefix).at("min") =
                         min(item_it.value(), data_item_analysis_.at(sensor_id).at(cat_str).at(sub_prefix).at("min"));

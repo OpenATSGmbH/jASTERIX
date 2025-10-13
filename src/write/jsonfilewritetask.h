@@ -29,6 +29,7 @@
 
 #include "jsonwriter.h"
 #include "logger.h"
+#include "traced_assert.h"
 
 namespace jASTERIX
 {
@@ -177,7 +178,7 @@ class JSONTextZipFileWriteTask //: public tbb::task
         for (auto& str : text_)
             byte_size += str.size();
 
-        assert(byte_size);
+        traced_assert(byte_size);
 
         json_zip_file_entry_ = archive_entry_new();
 

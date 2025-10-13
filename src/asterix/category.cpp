@@ -19,6 +19,7 @@
 
 #include "edition.h"
 #include "logger.h"
+#include "traced_assert.h"
 
 using namespace std;
 using namespace nlohmann;
@@ -168,13 +169,13 @@ bool Category::hasEdition(const std::string& edition_str) const
 
 std::shared_ptr<Edition> Category::edition(const std::string& edition_str)
 {
-    assert(hasEdition(edition_str));
+    traced_assert(hasEdition(edition_str));
     return editions_.at(edition_str);
 }
 
 std::string Category::editionPath(const std::string& edition_str) const
 {
-    assert(hasEdition(edition_str));
+    traced_assert(hasEdition(edition_str));
     return editions_.at(edition_str)->definitionPath();
 }
 
@@ -182,13 +183,13 @@ std::string Category::defaultEdition() const { return default_edition_; }
 
 void Category::setCurrentEdition(const std::string& edition_str)
 {
-    assert(hasEdition(edition_str));
+    traced_assert(hasEdition(edition_str));
     current_edition_ = edition_str;
 }
 
 std::shared_ptr<Edition> Category::getCurrentEdition()
 {
-    assert(hasEdition(current_edition_));
+    traced_assert(hasEdition(current_edition_));
     return editions_.at(current_edition_);
 }
 
@@ -205,13 +206,13 @@ bool Category::hasREFEdition(const std::string& edition_str) const
 
 std::shared_ptr<REFEdition> Category::refEdition(const std::string& edition_str)
 {
-    assert(hasREFEdition(edition_str));
+    traced_assert(hasREFEdition(edition_str));
     return ref_editions_.at(edition_str);
 }
 
 std::string Category::refEditionPath(const std::string& edition_str) const
 {
-    assert(hasREFEdition(edition_str));
+    traced_assert(hasREFEdition(edition_str));
     return ref_editions_.at(edition_str)->definitionPath();
 }
 
@@ -220,7 +221,7 @@ std::string Category::defaultREFEdition() const { return default_ref_edition_; }
 void Category::setCurrentREFEdition(const std::string& edition_str)
 {
     if (edition_str.size())  // empty is clear
-        assert(hasREFEdition(edition_str));
+        traced_assert(hasREFEdition(edition_str));
 
     current_ref_edition_ = edition_str;
 }
@@ -229,7 +230,7 @@ bool Category::hasCurrentREFEdition() { return hasREFEdition(current_ref_edition
 
 std::shared_ptr<REFEdition> Category::getCurrentREFEdition()
 {
-    assert(hasREFEdition(current_ref_edition_));
+    traced_assert(hasREFEdition(current_ref_edition_));
     return ref_editions_.at(current_ref_edition_);
 }
 
@@ -246,13 +247,13 @@ bool Category::hasSPFEdition(const std::string& edition_str) const
 
 std::shared_ptr<SPFEdition> Category::spfEdition(const std::string& edition_str)
 {
-    assert(hasSPFEdition(edition_str));
+    traced_assert(hasSPFEdition(edition_str));
     return spf_editions_.at(edition_str);
 }
 
 std::string Category::spfEditionPath(const std::string& edition_str) const
 {
-    assert(hasSPFEdition(edition_str));
+    traced_assert(hasSPFEdition(edition_str));
     return spf_editions_.at(edition_str)->definitionPath();
 }
 
@@ -261,7 +262,7 @@ std::string Category::defaultSPFEdition() const { return default_spf_edition_; }
 void Category::setCurrentSPFEdition(const std::string& edition_str)
 {
     if (edition_str.size())  // empty is clear
-        assert(hasSPFEdition(edition_str));
+        traced_assert(hasSPFEdition(edition_str));
 
     current_spf_edition_ = edition_str;
 }
@@ -270,7 +271,7 @@ bool Category::hasCurrentSPFEdition() { return hasSPFEdition(current_spf_edition
 
 std::shared_ptr<SPFEdition> Category::getCurrentSPFEdition()
 {
-    assert(hasSPFEdition(current_spf_edition_));
+    traced_assert(hasSPFEdition(current_spf_edition_));
     return spf_editions_.at(current_spf_edition_);
 }
 
@@ -287,7 +288,7 @@ bool Category::hasMapping(const std::string& mapping_str)
 
 std::shared_ptr<Mapping> Category::mapping(const std::string& mapping_str)
 {
-    assert(hasMapping(mapping_str));
+    traced_assert(hasMapping(mapping_str));
     return mappings_.at(mapping_str);
 }
 
@@ -309,13 +310,13 @@ void Category::setCurrentMapping(const std::string& mapping_str)
         return;
     }
 
-    assert(hasMapping(mapping_str));
+    traced_assert(hasMapping(mapping_str));
     current_mapping_ = mapping_str;
 }
 
 std::shared_ptr<Mapping> Category::getCurrentMapping()
 {
-    assert(hasCurrentMapping());
+    traced_assert(hasCurrentMapping());
     return mappings_.at(current_mapping_);
 }
 

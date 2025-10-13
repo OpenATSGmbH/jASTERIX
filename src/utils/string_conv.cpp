@@ -16,6 +16,7 @@
  */
 
 #include "string_conv.h"
+#include "traced_assert.h"
 
 #include <cassert>
 #include <cstring>
@@ -40,7 +41,7 @@ int char2int(char input)
 size_t hex2bin(const char* src, char* target)
 {
     size_t src_len = strlen(src);
-    assert(src_len % 2 == 0);
+    traced_assert(src_len % 2 == 0);
 
     while (*src && src[1])
     {

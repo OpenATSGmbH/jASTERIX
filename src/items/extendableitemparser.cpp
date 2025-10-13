@@ -18,6 +18,7 @@
 #include "extendableitemparser.h"
 
 #include "logger.h"
+#include "traced_assert.h"
 
 using namespace std;
 using namespace nlohmann;
@@ -27,7 +28,7 @@ namespace jASTERIX
 ExtendableItemParser::ExtendableItemParser(const nlohmann::json& item_definition, const std::string& long_name_prefix)
     : ItemParserBase(item_definition, long_name_prefix)
 {
-    assert(type_ == "extendable");
+    traced_assert(type_ == "extendable");
 
     if (!item_definition.contains("items"))
         throw runtime_error("parsing extendable item '" + name_ + "' without items");
@@ -45,7 +46,7 @@ ExtendableItemParser::ExtendableItemParser(const nlohmann::json& item_definition
     {
         item_name = data_item_it.at("name");
         item = ItemParserBase::createItemParser(data_item_it, long_name_); // leave out own name
-        assert(item);
+        traced_assert(item);
         items_.push_back(std::unique_ptr<ItemParserBase>{item});
     }
 }
@@ -67,7 +68,7 @@ size_t ExtendableItemParser::parseItem(const char* data, size_t index, size_t si
     unsigned int extend = 1;
     unsigned int cnt = 0;
 
-    assert(!target.contains(name_));
+    traced_assert(!target.contains(name_));
     target[name_] = json::array();
     json& j_data = target.at(name_);
 

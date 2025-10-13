@@ -20,6 +20,7 @@
 #include <algorithm>
 
 #include "logger.h"
+#include "traced_assert.h"
 
 using namespace std;
 using namespace nlohmann;
@@ -30,7 +31,7 @@ ExtendableBitsItemParser::ExtendableBitsItemParser(const nlohmann::json& item_de
                                                    const std::string& long_name_prefix)
     : ItemParserBase(item_definition, long_name_prefix)
 {
-    assert(type_ == "extendable_bits");
+    traced_assert(type_ == "extendable_bits");
 
     if (!item_definition.contains("data_type"))
         throw runtime_error("extendable bits item '" + name_ + "' parsing without data type");

@@ -19,6 +19,7 @@
 
 #include "logger.h"
 #include "string_conv.h"
+#include "traced_assert.h"
 
 using namespace std;
 using namespace nlohmann;
@@ -28,7 +29,7 @@ namespace jASTERIX
 ReservedExpansionField::ReservedExpansionField(const nlohmann::json& item_definition)
     : ItemParserBase(item_definition)
 {
-    assert(type_ == "ReservedExpansionField");
+    traced_assert(type_ == "ReservedExpansionField");
 
     // fspec
 
@@ -43,7 +44,7 @@ ReservedExpansionField::ReservedExpansionField(const nlohmann::json& item_defini
                             "' field specification is not an object");
 
     field_specification_.reset(ItemParserBase::createItemParser(field_specification, "REF"));
-    assert(field_specification_);
+    traced_assert(field_specification_);
 
     // uap
 
@@ -82,7 +83,7 @@ ReservedExpansionField::ReservedExpansionField(const nlohmann::json& item_defini
 
         item_number = data_item_it.at("number");
         item = ItemParserBase::createItemParser(data_item_it, "REF");
-        assert(item);
+        traced_assert(item);
 
         if (items_.count(item_number) != 0)
             throw runtime_error("ReservedExpansionField item '" + name_ + "' item number '" +

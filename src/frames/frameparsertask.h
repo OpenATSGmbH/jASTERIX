@@ -27,6 +27,7 @@
 #include "frameparser.h"
 #include "jasterix.h"
 #include "logger.h"
+#include "traced_assert.h"
 
 namespace jASTERIX
 {
@@ -59,7 +60,7 @@ public:
                 if (frame_parser_.hasFileHeaderItems())
                     *data_chunk = header_;  // copy header
 
-                assert(index_ < total_size_);
+                traced_assert(index_ < total_size_);
 
                 try
                 {
@@ -72,7 +73,7 @@ public:
                     //            if (done_)
                     //                loginf << "frame parser task done" << logendl;
 
-                    assert(data_chunk != nullptr);
+                    traced_assert(data_chunk != nullptr);
 
                     if (!data_chunk->contains("frames"))
                         throw std::runtime_error("jASTERIX scoped frames information contains no frames");
@@ -81,7 +82,7 @@ public:
                         throw std::runtime_error("jASTERIX scoped frames information is not array");
 
                     jasterix_.addDataChunk(std::move(data_chunk), done_);
-                    assert(data_chunk == nullptr);
+                    traced_assert(data_chunk == nullptr);
 
                 }
                 catch (std::exception& e)

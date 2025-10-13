@@ -24,6 +24,7 @@
 #include "jasterix.h"
 #include "logger.h"
 #include "string_conv.h"
+#include "traced_assert.h"
 
 using namespace std;
 using namespace nlohmann;
@@ -53,7 +54,7 @@ FrameParser::FrameParser(const json& framing_definition, ASTERIXParser& asterix_
                        << logendl;
 
             item = ItemParserBase::createItemParser(data_item_it, "");
-            assert(item);
+            traced_assert(item);
             file_header_items_.push_back(std::unique_ptr<ItemParserBase>{item});
         }
 
@@ -74,7 +75,7 @@ FrameParser::FrameParser(const json& framing_definition, ASTERIXParser& asterix_
             loginf << "frame parser constructing frame item '" << item_name << "'" << logendl;
 
         item = ItemParserBase::createItemParser(data_item_it, "");
-        assert(item);
+        traced_assert(item);
         frame_items_.push_back(std::unique_ptr<ItemParserBase>{item});
     }
 }
@@ -82,10 +83,10 @@ FrameParser::FrameParser(const json& framing_definition, ASTERIXParser& asterix_
 size_t FrameParser::parseHeader(const char* data, size_t index, size_t total_size, json& target,
                                 bool debug)
 {
-    assert(data);
-    assert(total_size);
-    assert(index < total_size);
-    // assert (target != nullptr);
+    traced_assert(data);
+    traced_assert(total_size);
+    traced_assert(index < total_size);
+    // traced_assert(target != nullptr);
 
     size_t parsed_bytes{0};
 
@@ -102,13 +103,13 @@ std::tuple<size_t, size_t, bool> FrameParser::findFrames(const char* data, size_
                                                          size_t total_size, nlohmann::json* target,
                                                          bool debug)
 {
-    assert(data);
-    assert(total_size);
-    assert(index < total_size);
-    assert(target);
+    traced_assert(data);
+    traced_assert(total_size);
+    traced_assert(index < total_size);
+    traced_assert(target);
 
     if (has_file_header_items_)
-        assert(target != nullptr);
+        traced_assert(target != nullptr);
 
     size_t parsed_bytes_sum{0};
     size_t parsed_bytes_frame{0};
@@ -180,8 +181,8 @@ std::tuple<size_t, size_t, bool> FrameParser::findFrames(const char* data, size_
 
 std::pair<size_t, size_t> FrameParser::decodeFrames(const char* data, size_t total_size, json* target, bool debug)
 {
-    assert(data);
-    assert(target != nullptr);
+    traced_assert(data);
+    traced_assert(target != nullptr);
 
     //    loginf << "FrameParser: decodeFrames" << logendl;
 
@@ -263,7 +264,7 @@ std::pair<size_t, size_t> FrameParser::decodeFrame(const char* data, size_t tota
 
     bool error = std::get<2>(db_ret);  // error flag
 
-    assert(std::get<3>(db_ret));  // done flag
+    traced_assert(std::get<3>(db_ret));  // done flag
 
     if (!frame_content.contains("data_blocks"))
         throw runtime_error("frame parser scoped frames do not contain data blocks");

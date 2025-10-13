@@ -27,6 +27,7 @@
 #include "logger.h"
 #include "record.h"
 #include "string_conv.h"
+#include "traced_assert.h"
 
 #if USE_OPENSSL
 #include <openssl/md5.h>
@@ -66,7 +67,7 @@ ASTERIXParser::ASTERIXParser(
                    << logendl;
 
         item = ItemParserBase::createItemParser(data_item_it, "");
-        assert(item);
+        traced_assert(item);
         data_block_items_.push_back(std::unique_ptr<ItemParserBase>{item});
     }
 
@@ -117,7 +118,7 @@ std::tuple<size_t, size_t, bool, bool> ASTERIXParser::findDataBlocks(
         loginf << "asterix parser finding data blocks at index " << index << " length " << length
                << logendl;
 
-    assert(target);
+    traced_assert(target);
 
     size_t parsed_bytes{0};
     size_t parsed_data_block_bytes{0};

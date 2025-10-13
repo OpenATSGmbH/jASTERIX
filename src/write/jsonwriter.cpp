@@ -27,6 +27,7 @@
 #include "jasterix.h"
 #include "jsonfilewritetask.h"
 #include "logger.h"
+#include "traced_assert.h"
 
 using namespace tbb;
 using namespace std;
@@ -97,7 +98,7 @@ void JSONWriter::writeData()
 {
     //loginf << "JSONWriter: writeData: json data size " << json_data_.size();
 
-    assert(json_data_.size());
+    traced_assert(json_data_.size());
 
     for (std::unique_ptr<nlohmann::json>& j_it : json_data_)
         (*j_it)["rec_num"] = rec_num_cnt_++;
@@ -114,7 +115,7 @@ void JSONWriter::writeData()
                                 " write data");
     }
 
-    assert(!json_data_.size());
+    traced_assert(!json_data_.size());
 
     switch (json_output_type_)
     {
@@ -129,13 +130,13 @@ void JSONWriter::writeData()
                                 " write data");
     }
 
-    assert(!text_data_.size());
+    traced_assert(!text_data_.size());
     //assert(!binary_data_.size());
 }
 
 void JSONWriter::convertJSON2Text()
 {
-    assert(!text_data_.size());
+    traced_assert(!text_data_.size());
     text_data_.resize(json_data_.size());
 
     size_t size = json_data_.size();
@@ -144,13 +145,13 @@ void JSONWriter::convertJSON2Text()
         text_data_[cnt] = json_data_.at(cnt)->dump(print_dump_indent) + "\n";
     });
 
-    assert(text_data_.size() == json_data_.size());
+    traced_assert(text_data_.size() == json_data_.size());
     json_data_.clear();
 }
 
 void JSONWriter::openJsonFile()
 {
-    assert(!json_file_open_);
+    traced_assert(!json_file_open_);
 
     switch (json_output_type_)
     {
@@ -170,8 +171,8 @@ void JSONWriter::openJsonFile()
 
 void JSONWriter::writeTextToFile()
 {
-    assert(json_file_open_);
-    assert(text_data_.size());
+    traced_assert(json_file_open_);
+    traced_assert(text_data_.size());
 
     while (file_write_in_progress_)
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -190,13 +191,13 @@ void JSONWriter::writeTextToFile()
 
     text_data_.clear();
 
-    assert(!text_data_.size());
+    traced_assert(!text_data_.size());
 }
 
 //void JSONWriter::writeBinaryToFile()
 //{
-//    assert(json_file_open_);
-//    assert(binary_data_.size());
+//    traced_assert(json_file_open_);
+//    traced_assert(binary_data_.size());
 
 //    //    for (const std::vector<std::uint8_t>& bin_it : binary_data_)
 //    //        json_file_.write (reinterpret_cast<const char*>(bin_it.data()), bin_it.size());
@@ -214,7 +215,7 @@ void JSONWriter::writeTextToFile()
 
 //    binary_data_.clear();
 
-//    assert(!binary_data_.size());
+//    traced_assert(!binary_data_.size());
 //}
 
 void JSONWriter::closeJsonFile()
@@ -225,7 +226,7 @@ void JSONWriter::closeJsonFile()
 
 void JSONWriter::openJsonZipFile()
 {
-    assert(!json_zip_file_open_);
+    traced_assert(!json_zip_file_open_);
 
     json_zip_file_ = archive_write_new();
     archive_write_set_format_zip(json_zip_file_);
@@ -236,8 +237,8 @@ void JSONWriter::openJsonZipFile()
 
 void JSONWriter::writeTextToZipFile()
 {
-    assert(json_zip_file_open_);
-    assert(text_data_.size());
+    traced_assert(json_zip_file_open_);
+    traced_assert(text_data_.size());
 
     while (file_write_in_progress_)
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -257,8 +258,8 @@ void JSONWriter::writeTextToZipFile()
 
 //void JSONWriter::writeBinaryToZipFile()
 //{
-//    assert(json_zip_file_open_);
-//    assert(binary_data_.size());
+//    traced_assert(json_zip_file_open_);
+//    traced_assert(binary_data_.size());
 
 //    //    for (const std::vector<std::uint8_t> bin_it : binary_data_)
 //    //        archive_write_data (json_zip_file_, reinterpret_cast<const void*>(bin_it.data()),
@@ -275,7 +276,7 @@ void JSONWriter::writeTextToZipFile()
 //        JSONBinaryZipFileWriteTask(json_zip_file_, std::move(binary_data_), *this);
 //    tbb::task::enqueue(*write_task);
 
-//    assert(!binary_data_.size());
+//    traced_assert(!binary_data_.size());
 //}
 
 void JSONWriter::closeJsonZipFile()

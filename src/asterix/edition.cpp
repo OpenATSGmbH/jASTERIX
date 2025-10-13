@@ -17,6 +17,7 @@
 
 #include "edition.h"
 #include "record.h"
+#include "traced_assert.h"
 
 namespace jASTERIX
 {
@@ -36,7 +37,7 @@ std::shared_ptr<Record> Edition::record() const { return record_; }
 
 void Edition::addInfo (const std::string& edition, CategoryItemInfo& info)
 {
-    assert (record_);
+    traced_assert(record_);
     record_->addInfo(edition, info);
 }
 

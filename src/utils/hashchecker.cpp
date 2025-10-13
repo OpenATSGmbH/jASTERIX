@@ -4,6 +4,7 @@
 
 #include "jasterix.h"
 #include "logger.h"
+#include "traced_assert.h"
 
 std::string check_artas_md5_hash;
 std::vector<int> check_artas_md5_categories;
@@ -15,13 +16,13 @@ using namespace nlohmann;
 void check_callback(std::unique_ptr<nlohmann::json> data_chunk, size_t num_frames,
                     size_t num_records, size_t num_errors)
 {
-    assert(hash_checker);
+    traced_assert(hash_checker);
     hash_checker->process(std::move(data_chunk));
 }
 
 HashChecker::HashChecker(bool framing_used) : framing_used_(framing_used)
 {
-    assert(jASTERIX::add_record_data);
+    traced_assert(jASTERIX::add_record_data);
 }
 
 void HashChecker::process(std::unique_ptr<nlohmann::json> data)
@@ -34,7 +35,7 @@ void HashChecker::process(std::unique_ptr<nlohmann::json> data)
 
     if (!framing_used_)
     {
-        assert(data->find("data_blocks") != data->end());
+        traced_assert(data->find("data_blocks") != data->end());
 
         for (json& data_block : data->at("data_blocks"))
         {
@@ -61,20 +62,20 @@ void HashChecker::process(std::unique_ptr<nlohmann::json> data)
     }
     else
     {
-        assert(data->find("frames") != data->end());
-        assert(data->at("frames").is_array());
+        traced_assert(data->find("frames") != data->end());
+        traced_assert(data->at("frames").is_array());
 
         for (json& frame : data->at("frames"))
         {
             if (!frame.contains("content"))  // frame with errors
                 continue;
 
-            assert(frame.at("content").is_object());
+            traced_assert(frame.at("content").is_object());
 
             if (!frame.at("content").contains("data_blocks"))  // frame with errors
                 continue;
 
-            assert(frame.at("content").at("data_blocks").is_array());
+            traced_assert(frame.at("content").at("data_blocks").is_array());
 
             for (json& data_block : frame.at("content").at("data_blocks"))
             {
@@ -110,10 +111,10 @@ void HashChecker::processRecord(unsigned int category, nlohmann::json& record)
     //    loginf << "UGA  cat " << category << " index " << index << " length " << length
     //           << " '" << record.dump(4) << "'" << logendl;
 
-    assert(record.contains("artas_md5"));
-    assert(record.contains("index"));
-    assert(record.contains("length"));
-    assert(record.contains("record_data"));
+    traced_assert(record.contains("artas_md5"));
+    traced_assert(record.contains("index"));
+    traced_assert(record.contains("length"));
+    traced_assert(record.contains("record_data"));
 
     hash_map_[record.at("artas_md5")].emplace_back(category, record.at("index"),
                                                    record.at("length"), record.at("record_data"));

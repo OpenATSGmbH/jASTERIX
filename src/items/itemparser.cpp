@@ -18,6 +18,7 @@
 #include "itemparser.h"
 
 #include "logger.h"
+#include "traced_assert.h"
 
 using namespace std;
 using namespace nlohmann;
@@ -27,7 +28,7 @@ namespace jASTERIX
 ItemParser::ItemParser(const nlohmann::json& item_definition, const std::string& long_name_prefix)
     : ItemParserBase(item_definition, long_name_prefix)
 {
-    assert(type_ == "item");
+    traced_assert(type_ == "item");
 
     if (!item_definition.contains("number"))
         throw runtime_error("parsing item '" + name_ + "' without number");
@@ -58,7 +59,7 @@ ItemParser::ItemParser(const nlohmann::json& item_definition, const std::string&
             item_number = "";
 
         item = ItemParserBase::createItemParser(data_item_it, long_name_);
-        assert(item);
+        traced_assert(item);
         data_fields_.push_back(std::unique_ptr<ItemParserBase>{item});
     }
 }

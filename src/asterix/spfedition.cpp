@@ -17,6 +17,7 @@
 
 #include "spfedition.h"
 #include "ref.h"
+#include "traced_assert.h"
 
 namespace jASTERIX
 {
@@ -36,7 +37,7 @@ std::shared_ptr<SpecialPurposeField> SPFEdition::specialPurposeField() const { r
 
 void SPFEdition::addInfo (const std::string& edition, CategoryItemInfo& info)
 {
-    assert (spf_);
+    traced_assert(spf_);
     spf_->addInfo(edition, info);
 }
 

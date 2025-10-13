@@ -18,6 +18,7 @@
 #include "skipbytesitemparser.h"
 
 #include "logger.h"
+#include "traced_assert.h"
 
 using namespace std;
 using namespace nlohmann;
@@ -27,7 +28,7 @@ namespace jASTERIX
 SkipBytesItemParser::SkipBytesItemParser(const nlohmann::json& item_definition, const std::string& long_name_prefix)
     : ItemParserBase(item_definition, long_name_prefix)
 {
-    assert(type_ == "skip_bytes");
+    traced_assert(type_ == "skip_bytes");
 
     if (!item_definition.contains("length"))
         throw runtime_error("fixed bytes item '" + name_ + "' parsing without length");

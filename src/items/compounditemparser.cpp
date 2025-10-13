@@ -16,8 +16,8 @@
  */
 
 #include "compounditemparser.h"
-
 #include "logger.h"
+#include "traced_assert.h"
 
 using namespace std;
 using namespace nlohmann;
@@ -27,7 +27,7 @@ namespace jASTERIX
 CompoundItemParser::CompoundItemParser(const nlohmann::json& item_definition, const std::string& long_name_prefix)
     : ItemParserBase(item_definition, long_name_prefix)
 {
-    assert(type_ == "compound");
+    traced_assert(type_ == "compound");
 
     if (!item_definition.contains("field_specification"))
         throw runtime_error("compound item '" + name_ + "' parsing without field specification");
@@ -41,7 +41,7 @@ CompoundItemParser::CompoundItemParser(const nlohmann::json& item_definition, co
     // field_specification_name_ = field_specification.at("name");
 
     field_specification_.reset(ItemParserBase::createItemParser(field_specification, long_name_));
-    assert(field_specification_);
+    traced_assert(field_specification_);
 
     if (!item_definition.contains("items"))
         throw runtime_error("parsing compound item '" + name_ + "' without items");
@@ -59,7 +59,7 @@ CompoundItemParser::CompoundItemParser(const nlohmann::json& item_definition, co
     {
         item_name = data_item_it.at("name");
         item = ItemParserBase::createItemParser(data_item_it, long_name_prefix_); // leave out own name
-        assert(item);
+        traced_assert(item);
         items_.push_back(std::unique_ptr<ItemParserBase>{item});
     }
 }

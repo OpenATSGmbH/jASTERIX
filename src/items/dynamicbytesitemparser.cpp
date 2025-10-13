@@ -18,6 +18,7 @@
 #include "dynamicbytesitemparser.h"
 
 #include "logger.h"
+#include "traced_assert.h"
 
 using namespace std;
 using namespace nlohmann;
@@ -28,7 +29,7 @@ DynamicBytesItemParser::DynamicBytesItemParser(const nlohmann::json& item_defini
                                                const std::string& long_name_prefix)
     : ItemParserBase(item_definition, long_name_prefix)
 {
-    assert(type_ == "dynamic_bytes");
+    traced_assert(type_ == "dynamic_bytes");
 
     if (!item_definition.contains("length_variable"))
         throw runtime_error("dynamic bytes item '" + name_ + "' parsing without length variable");
@@ -77,7 +78,7 @@ size_t DynamicBytesItemParser::parseItem(const char* data, size_t index, size_t 
                                 std::to_string(current_parsed_bytes));
         }
 
-        assert(length >= current_parsed_bytes);
+        traced_assert(length >= current_parsed_bytes);
 
         if (debug)
             loginf << "parsing dynamic bytes item '" << name_ << "' substracting previous "
@@ -99,7 +100,7 @@ size_t DynamicBytesItemParser::parseItem(const char* data, size_t index, size_t 
         loginf << "parsing dynamic bytes item '" + name_ + "' index " << index << " length "
                << length << logendl;
 
-    assert(!target.contains(name_));
+    traced_assert(!target.contains(name_));
 
     target.emplace(name_, json::object({{"index", index}, {"length", length}}));
 

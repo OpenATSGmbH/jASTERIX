@@ -20,6 +20,7 @@
 #include "jsonwriter.h"
 #include "logger.h"
 #include "string_conv.h"
+#include "traced_assert.h"
 
 #if USE_OPENSSL
 #include "utils/hashchecker.h"
@@ -58,14 +59,14 @@ void write_callback(std::unique_ptr<nlohmann::json> data_chunk, size_t num_frame
     //    records, "
     //           << num_errors << " errors";
 
-    assert(json_writer);
+    traced_assert(json_writer);
     json_writer->write(std::move(data_chunk));
 }
 
 void empty_callback(std::unique_ptr<nlohmann::json> data_chunk, size_t num_frames,
                     size_t num_records, size_t num_errors)
 {
-    assert(data_chunk);
+    traced_assert(data_chunk);
 }
 
 int main(int argc, char** argv)
@@ -397,7 +398,7 @@ int main(int argc, char** argv)
     {
         logerr << "jASTERIX client: caught exception: " << ex.what() << logendl;
 
-        // assert (false);
+        // traced_assert(false);
 
         return -1;
     }
@@ -405,7 +406,7 @@ int main(int argc, char** argv)
     {
         logerr << "jASTERIX client: caught exception" << logendl;
 
-        // assert (false);
+        // traced_assert(false);
 
         return -1;
     }

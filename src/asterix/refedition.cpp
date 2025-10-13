@@ -21,6 +21,7 @@
 
 #include "files.h"
 #include "ref.h"
+#include "traced_assert.h"
 
 namespace jASTERIX
 {
@@ -41,7 +42,7 @@ std::shared_ptr<ReservedExpansionField> REFEdition::reservedExpansionField() con
 
 void REFEdition::addInfo (const std::string& edition, CategoryItemInfo& info)
 {
-    assert (ref_);
+    traced_assert(ref_);
     ref_->addInfo(edition, info);
 }
 

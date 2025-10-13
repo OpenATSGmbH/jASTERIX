@@ -18,6 +18,7 @@
 #include "repetetiveitemparser.h"
 
 #include "logger.h"
+#include "traced_assert.h"
 
 using namespace std;
 using namespace nlohmann;
@@ -27,7 +28,7 @@ namespace jASTERIX
 RepetetiveItemParser::RepetetiveItemParser(const nlohmann::json& item_definition, const std::string& long_name_prefix)
     : ItemParserBase(item_definition, long_name_prefix)
 {
-    assert(type_ == "repetitive");
+    traced_assert(type_ == "repetitive");
 
     if (!item_definition.contains("repetition_item"))
         throw runtime_error("repetitive item '" + name_ +
@@ -44,7 +45,7 @@ RepetetiveItemParser::RepetetiveItemParser(const nlohmann::json& item_definition
                             "' repetition item specification has to be named 'REP'");
 
     repetition_item_.reset(ItemParserBase::createItemParser(repetition_item, long_name_));
-    assert(repetition_item_);
+    traced_assert(repetition_item_);
 
     if (!item_definition.contains("items"))
         throw runtime_error("parsing repetitive item '" + name_ + "' without items");
@@ -62,7 +63,7 @@ RepetetiveItemParser::RepetetiveItemParser(const nlohmann::json& item_definition
     {
         item_name = data_item_it.at("name");
         item = ItemParserBase::createItemParser(data_item_it, long_name_);
-        assert(item);
+        traced_assert(item);
         items_.push_back(std::unique_ptr<ItemParserBase>{item});
     }
 }
@@ -86,7 +87,7 @@ size_t RepetetiveItemParser::parseItem(const char* data, size_t index, size_t si
 
     unsigned int rep = target.at("REP");
 
-    assert(!target.contains(name_));
+    traced_assert(!target.contains(name_));
     target[name_] = json::array();
     json& j_data = target.at(name_);
 
