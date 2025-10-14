@@ -263,6 +263,16 @@ std::pair<size_t, size_t> ASTERIXParser::decodeDataBlocks(const char* data, size
     //        ret.second += num_record_it.second;
     //    }
 
+    auto limitJsonDump = [](const nlohmann::json& json_obj, size_t max_len = 500) -> std::string
+    {
+        std::string result = json_obj.dump(-1);  // -1 = compact format
+        if (result.length() > max_len)
+        {
+            result = result.substr(0, max_len - 3) + "...";
+        }
+        return result;
+    };
+
     size_t cnt = 0;
     for (std::vector<std::pair<size_t, size_t>>::iterator it = num_records.begin();
          it != num_records.end(); ++it)
@@ -272,11 +282,11 @@ std::pair<size_t, size_t> ASTERIXParser::decodeDataBlocks(const char* data, size
 
         if (it->second)
         {
-            loginf << "asterix parser reported error in record '" << data_blocks[cnt].dump(4) << "'"
+            logerr << "asterix parser reported error in record '" << limitJsonDump(data_blocks[cnt]) << "'"
                    << logendl;
 
-            if (it != num_records.begin())
-                loginf << "previous record " << data_blocks[cnt - 1].dump(4) << "'" << logendl;
+            if (debug && it != num_records.begin())
+                loginf << "previous record " << limitJsonDump(data_blocks[cnt - 1]) << "'" << logendl;
         }
 
         ++cnt;
@@ -294,7 +304,7 @@ std::pair<size_t, size_t> ASTERIXParser::decodeDataBlock(const char* data, size_
     if (debug)
         loginf << "ASTERIXParser: decodeDataBlock" << logendl;
 
-    std::pair<size_t, size_t> ret{0, 0};  // num records, num errors
+    unsigned int num_records {0}, num_errors{0};
 
     // check record information
     // json& record = target.at(data_block_name_);
@@ -377,7 +387,7 @@ std::pair<size_t, size_t> ASTERIXParser::decodeDataBlock(const char* data, size_
                     records_.at(cat)->parseItem(
                             data, data_block_index + data_block_parsed_bytes,
                             data_block_length - data_block_parsed_bytes,
-                            data_block_parsed_bytes, total_size, records[ret.first], debug);
+                            data_block_parsed_bytes, total_size, records[num_records], debug);
 
                 if (debug)
                     loginf << "record with cat " << cat << " index "
@@ -390,33 +400,47 @@ std::pair<size_t, size_t> ASTERIXParser::decodeDataBlock(const char* data, size_
 
                 if (debug)
                     loginf << "asterix parser decoding record with cat " << cat << " index "
-                           << data_block_index << ": " << records[ret.first].dump(4) << "'"
+                           << data_block_index << ": " << records[num_records].dump(4) << "'"
                            << logendl;
 
 #if USE_OPENSSL
                 if (add_artas_md5_hash)
                     calculateARTASMD5Hash(&data[data_block_index + data_block_parsed_bytes],
-                                          record_parsed_bytes, records[ret.first]);
+                                          record_parsed_bytes, records[num_records]);
 #endif
                 if (add_record_data)
-                    data_block_content.at("records")[ret.first]["record_data"] = binary2hex(
+                    data_block_content.at("records")[num_records]["record_data"] = binary2hex(
                         (const unsigned char*)&data[data_block_index + data_block_parsed_bytes],
                         record_parsed_bytes);
 
-                records[ret.first]["index"] = data_block_index + data_block_parsed_bytes;
-                records[ret.first]["length"] = record_parsed_bytes;
+                records[num_records]["index"] = data_block_index + data_block_parsed_bytes;
+                records[num_records]["length"] = record_parsed_bytes;
 
                 data_block_parsed_bytes += record_parsed_bytes;
 
-                ++ret.first;
+                ++num_records;
             }
         }
         catch (std::exception& e)
         {
             std::string record_json;
 
+            auto limitJsonDump = [](const nlohmann::json& json_obj, size_t max_len = 500) -> std::string
+            {
+                std::string result = json_obj.dump(-1);  // -1 = compact format
+                if (result.length() > max_len)
+                {
+                    result = result.substr(0, max_len - 3) + "...";
+                }
+                return result;
+            };
+
             if (data_block_content.contains("records") && data_block_content.at("records").size())
-                record_json = data_block_content.at("records").back().dump(4);
+            {
+                data_block_content.at("records").back()["error"] = true; // set error flag
+
+                record_json = limitJsonDump(data_block_content.at("records").back());
+            }
 
             logerr << "asterix parser decoding of cat " << cat << " failed with exception: '"
                    << e.what() << "'"
@@ -425,7 +449,7 @@ std::pair<size_t, size_t> ASTERIXParser::decodeDataBlock(const char* data, size_
                    << (record_json.size() ? " record json '" + record_json + "'" : "")
                    << logendl;
 
-            ++ret.second;
+            ++num_errors;
         }
     }
     else if (debug)
@@ -433,27 +457,27 @@ std::pair<size_t, size_t> ASTERIXParser::decodeDataBlock(const char* data, size_
                << " length " << data_block_length << " skipped since cat definition is missing "
                << logendl;
 
-    if (ret.first && mappings_.count(cat))
+    if (num_records && mappings_.count(cat))
     {
         if (debug)
-            loginf << "asterix parser decoding mapping cat " << cat << ", num records " << ret.first
+            loginf << "asterix parser decoding mapping cat " << cat << ", num records " << num_records
                    << logendl;
 
         std::shared_ptr<Mapping> current_mapping = mappings_.at(cat);
         json& mapping_src = data_block_content.at("records");
         json mapping_dest = json::array();
 
-        for (size_t cnt = 0; cnt < ret.first; ++cnt)
+        for (size_t cnt = 0; cnt < num_records; ++cnt)
             current_mapping->map(mapping_src[cnt], mapping_dest[cnt]);
 
         data_block_content.emplace("records", std::move(mapping_dest));
     }
 
     if (debug)
-        loginf << "ASTERIXParser: decodeDataBlock: done num records " << ret.first << " errors "
-               << ret.second << logendl;
+        loginf << "ASTERIXParser: decodeDataBlock: done num records " << num_records << " errors "
+               << num_errors << logendl;
 
-    return ret;
+    return std::pair<size_t, size_t>{num_records, num_errors};
 }
 
 #if USE_OPENSSL
