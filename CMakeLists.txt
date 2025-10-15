@@ -14,8 +14,14 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-message("  Platform: Linux")
-add_definitions ( -Wall -UNDEBUG -std=c++14) # -Wno-int-in-bool-context
+if(EXISTS "/.dockerenv")
+message("  Platform: Linux (inside docker)")
+add_definitions ( -UNDEBUG -Wall -std=c++14 -fext-numeric-literals) # -DQT_NO_KEYWORDS
+ELSE()
+message("  Platform: Linux (local)")
+add_definitions ( -UNDEBUG -Wall -std=c++17 -fno-omit-frame-pointer) # -DQT_NO_KEYWORDS -fext-numeric-literals
+ENDIF()
+
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 # Instruct CMake to run moc automatically when needed.
@@ -31,7 +37,7 @@ message("USE_OPENSSL: ${USE_OPENSSL}")
 
 configure_file(include/jasterix/global.h.in include/jasterix/global.h)
 
-find_package ( Boost 1.73.0 COMPONENTS program_options filesystem iostreams regex system REQUIRED)
+find_package ( Boost 1.73.0 COMPONENTS program_options filesystem iostreams regex system stacktrace_backtrace REQUIRED)
 message("  Boost_INCLUDE_DIRS: ${Boost_INCLUDE_DIRS}")
 message("  Boost_LIBRARY_DIR: ${Boost_LIBRARY_DIR}")
 message("  Boost_LIBRARIES: ${Boost_LIBRARIES}")
@@ -108,6 +114,12 @@ target_sources(jasterix
     PUBLIC
         "${LIB_DIR}/json.hpp"
     PRIVATE
+)    
+    
+target_compile_definitions(jasterix PRIVATE
+    BOOST_STACKTRACE_USE_BACKTRACE
+    #BOOST_ENABLE_ASSERT_HANDLER
+    BOOST_STACKTRACE_LINK
 )    
     
 message("Installing using prefix: ${CMAKE_INSTALL_PREFIX}")
