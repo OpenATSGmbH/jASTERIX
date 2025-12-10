@@ -99,7 +99,8 @@ size_t FrameParser::parseHeader(const char* data, size_t index, size_t total_siz
     return parsed_bytes;
 }
 
-std::tuple<size_t, size_t, bool> FrameParser::findFrames(const char* data, size_t index,
+// parsed bytes, num frames, done flag, error flag
+std::tuple<size_t, size_t, bool, bool> FrameParser::findFrames(const char* data, size_t index,
                                                          size_t total_size, nlohmann::json* target,
                                                          bool debug)
 {
@@ -185,10 +186,10 @@ std::tuple<size_t, size_t, bool> FrameParser::findFrames(const char* data, size_
         ++sum_frames_cnt_;
     }
 
-    bool done_flag = error_flag || hit_frame_limit ? true : !hit_frame_chunk_limit;
+    bool done_flag = hit_frame_limit ? true : !hit_frame_chunk_limit;
     // done if frame limit hit, if not -> done if frame chunk limit not hit
 
-    return std::make_tuple(parsed_bytes_sum, chunk_frames_cnt, done_flag);
+    return std::make_tuple(parsed_bytes_sum, chunk_frames_cnt, done_flag, error_flag);
 }
 
 std::pair<size_t, size_t> FrameParser::decodeFrames(const char* data, size_t total_size, json* target, bool debug)

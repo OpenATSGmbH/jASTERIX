@@ -52,7 +52,7 @@ public:
             if (debug_)
                 loginf << "frame parser task execute" << logendl;
 
-            while (!force_stop_ && !done_)  // || size_-index_ > 0
+            while (!force_stop_ && !done_ && !error_ocurred_)  // || size_-index_ > 0
             {
                 std::unique_ptr<nlohmann::json> data_chunk{new nlohmann::json()};
 
@@ -63,11 +63,12 @@ public:
 
                 try
                 {
-                    std::tuple<size_t, size_t, bool> ret =
+                    std::tuple<size_t, size_t, bool, bool> ret =
                             frame_parser_.findFrames(data_, index_, total_size_, data_chunk.get(), debug_);
 
                     index_ += std::get<0>(ret);  // parsed bytes
                     done_ = std::get<2>(ret);    // done flag
+                    error_ocurred_ = std::get<3>(ret);    // error flag
 
                     //            if (done_)
                     //                loginf << "frame parser task done" << logendl;

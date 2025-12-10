@@ -34,8 +34,8 @@ class FrameParser
     size_t parseHeader(const char* data, size_t index, size_t total_size, nlohmann::json& target,
                        bool debug);
 
-    // parsed bytes, num frames, done flag
-    std::tuple<size_t, size_t, bool> findFrames(const char* data, size_t index, size_t total_size,
+    // parsed bytes, num frames, done flag, error flag
+    std::tuple<size_t, size_t, bool, bool> findFrames(const char* data, size_t index, size_t total_size,
                                                 nlohmann::json* target, bool debug);
 
     // num records, num errors
