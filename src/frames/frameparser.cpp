@@ -122,7 +122,9 @@ std::tuple<size_t, size_t, bool> FrameParser::findFrames(const char* data, size_
 
     nlohmann::json& j_frames = (*target)["frames"];
 
-    bool done_flag{false};
+    bool hit_frame_limit{false};
+    bool hit_frame_chunk_limit{false};
+    bool error_flag{false};
 
     while (index + parsed_bytes_sum < total_size)
     {
@@ -138,7 +140,7 @@ std::tuple<size_t, size_t, bool> FrameParser::findFrames(const char* data, size_
                 loginf << "frame parser hit frame limit at " << sum_frames_cnt_ << ", setting done"
                        << logendl;
 
-            done_flag = true; // hit frame limit
+            hit_frame_limit = true;
             break;
         }
 
@@ -148,7 +150,7 @@ std::tuple<size_t, size_t, bool> FrameParser::findFrames(const char* data, size_
             if (debug)
                 loginf << "frame parser hit frame chunk limit at " << chunk_frames_cnt << logendl;
 
-            done_flag = true; // hit frame chumk limit
+            hit_frame_chunk_limit = true;
             break;
         }
 
@@ -157,9 +159,9 @@ std::tuple<size_t, size_t, bool> FrameParser::findFrames(const char* data, size_
         {
             if (index + parsed_bytes_sum >= total_size)
             {
-               logerr << "unexpected quit at index " << index + parsed_bytes_sum << " frame pb "
-                      << parsed_bytes_frame << " cnt " << chunk_frames_cnt << logendl;
-               done_flag = true; // too long
+                logerr << "unexpected quit at index " << index + parsed_bytes_sum << " frame pb "
+                       << parsed_bytes_frame << " cnt " << chunk_frames_cnt << logendl;
+                error_flag = true; // too long
                 break;
             }
 
@@ -182,6 +184,9 @@ std::tuple<size_t, size_t, bool> FrameParser::findFrames(const char* data, size_
         ++chunk_frames_cnt;
         ++sum_frames_cnt_;
     }
+
+    bool done_flag = error_flag || hit_frame_limit ? true : !hit_frame_chunk_limit;
+    // done if frame limit hit, if not -> done if frame chunk limit not hit
 
     return std::make_tuple(parsed_bytes_sum, chunk_frames_cnt, done_flag);
 }

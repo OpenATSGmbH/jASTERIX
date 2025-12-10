@@ -256,8 +256,10 @@ std::unique_ptr<nlohmann::json> jASTERIX::analyzeFile(
     while (!stop_decoding_ && !task->errorOcurred())
     {
         if (data_processing_done_ && data_chunks_.empty())
+        {
+            loginf << "UGA";
             break;
-
+        }
         if (data_chunks_.empty())
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -1006,7 +1008,7 @@ void jASTERIX::addDataBlockChunk(std::unique_ptr<nlohmann::json> data_block_chun
 
 void jASTERIX::addDataChunk(std::unique_ptr<nlohmann::json> data_chunk, bool done)
 {
-    //loginf << "jASTERIX: addDataChunk";
+    //loginf << "jASTERIX: addDataChunk: done " << done;
 
     if (debug_)
     {
