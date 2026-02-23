@@ -422,7 +422,7 @@
                     "type":"fixed_bytes",
                     "length":2,
                     "start_bit":0,
-                    "bit_length":11,
+                    "bit_length":12,
                     "data_type":"uint"
                 }
             ]
