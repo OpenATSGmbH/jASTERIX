@@ -1209,36 +1209,41 @@ void jASTERIX::addJSONAnalysis(const std::string& sensor_id, const std::string& 
         {
             is_primitive = item_it.value().is_primitive();
 
-            if (data_item_analysis_.count(sensor_id)
-                && data_item_analysis_.at(sensor_id).count(cat_str)
-                && data_item_analysis_.at(sensor_id).at(cat_str).count(sub_prefix)
-                && data_item_analysis_.at(sensor_id).at(cat_str).at(sub_prefix).count("count"))
+            // navigate to the inner entry using find() to avoid repeated lookups
+            auto sit = data_item_analysis_.find(sensor_id);
+            if (sit != data_item_analysis_.end())
             {
-                unsigned int count = data_item_analysis_.at(sensor_id).at(cat_str).at(sub_prefix).at("count");
-                data_item_analysis_.at(sensor_id).at(cat_str).at(sub_prefix).at("count") = count + 1;
-
-                if (is_primitive)
+                auto cit = sit->second.find(cat_str);
+                if (cit != sit->second.end())
                 {
-                    traced_assert(data_item_analysis_.count(sensor_id));
-                    traced_assert(data_item_analysis_.at(sensor_id).count(cat_str));
-                    traced_assert(data_item_analysis_.at(sensor_id).at(cat_str).count(sub_prefix));
-                    traced_assert(data_item_analysis_.at(sensor_id).at(cat_str).at(sub_prefix).count("min"));
-                    traced_assert(data_item_analysis_.at(sensor_id).at(cat_str).at(sub_prefix).count("max"));
+                    auto pit = cit->second.find(sub_prefix);
+                    if (pit != cit->second.end())
+                    {
+                        auto& entry = pit->second;  // the count/min/max json object
 
-                    data_item_analysis_.at(sensor_id).at(cat_str).at(sub_prefix).at("min") =
-                        min(item_it.value(), data_item_analysis_.at(sensor_id).at(cat_str).at(sub_prefix).at("min"));
-                    data_item_analysis_.at(sensor_id).at(cat_str).at(sub_prefix).at("max") =
-                        max(item_it.value(), data_item_analysis_.at(sensor_id).at(cat_str).at(sub_prefix).at("max"));
+                        unsigned int count = entry.at("count");
+                        entry["count"] = count + 1;
+
+                        if (is_primitive)
+                        {
+                            entry["min"] = min(item_it.value(), entry.at("min"));
+                            entry["max"] = max(item_it.value(), entry.at("max"));
+                        }
+
+                        continue;  // done with this item
+                    }
                 }
             }
-            else
+
+            // first occurrence — create entry via operator[]
             {
-                data_item_analysis_[sensor_id][cat_str][sub_prefix]["count"] = 1;
+                auto& entry = data_item_analysis_[sensor_id][cat_str][sub_prefix];
+                entry["count"] = 1;
 
                 if (is_primitive)
                 {
-                    data_item_analysis_.at(sensor_id).at(cat_str).at(sub_prefix)["min"] = item_it.value();
-                    data_item_analysis_.at(sensor_id).at(cat_str).at(sub_prefix)["max"] = item_it.value();
+                    entry["min"] = item_it.value();
+                    entry["max"] = item_it.value();
                 }
             }
         }
