@@ -26,6 +26,7 @@
 #include <boost/iostreams/device/mapped_file.hpp>
 #include <deque>
 #include <map>
+#include <atomic>
 #include <condition_variable>
 #include <mutex>
 #include <string>
@@ -148,7 +149,7 @@ class jASTERIX
     size_t num_records_{0};
     size_t num_errors_{0};
 
-    bool stop_decoding_ {false};
+    std::atomic<bool> stop_decoding_{false};
 
     // sac/sic -> cat -> count
     //std::map<std::string, std::map<std::string, unsigned int>> sensor_counts_;

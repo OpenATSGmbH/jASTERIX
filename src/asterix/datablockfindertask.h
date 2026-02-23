@@ -18,6 +18,7 @@
  #pragma once
 
 #include <tbb/tbb.h>
+#include <atomic>
 #include <future>
 
 #include <exception>
@@ -60,7 +61,8 @@ class DataBlockFinderTask // : public tbb::task
 
                     parsed_bytes += std::get<0>(ret);
                     num_data_blocks += std::get<1>(ret);
-                    error_ += std::get<2>(ret);
+                    if (std::get<2>(ret))
+                        error_ = true;
                     done_ = std::get<3>(ret);
 
 //                    loginf << "DataBlockFinderTask: ex pb " << parsed_bytes << " num db "
@@ -98,9 +100,9 @@ class DataBlockFinderTask // : public tbb::task
     size_t index_;
     size_t total_size_;
     bool debug_;
-    bool error_{false};
-    bool done_{false};
-    volatile bool force_stop_{false};
+    std::atomic<bool> error_{false};
+    std::atomic<bool> done_{false};
+    std::atomic<bool> force_stop_{false};
 
     std::future<void> pending_future_;
 };

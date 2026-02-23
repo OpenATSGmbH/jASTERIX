@@ -19,6 +19,7 @@
 
 #include <tbb/tbb.h>
 
+#include <atomic>
 #include <future>
 #include <exception>
 #include <tuple>
@@ -119,9 +120,9 @@ private:
     size_t index_;
     size_t total_size_;
     bool debug_;
-    bool error_ocurred_{false};
-    bool done_{false};
-    volatile bool force_stop_{false};
+    std::atomic<bool> error_ocurred_{false};
+    std::atomic<bool> done_{false};
+    std::atomic<bool> force_stop_{false};
 
     std::future<void> pending_future_;
 };
