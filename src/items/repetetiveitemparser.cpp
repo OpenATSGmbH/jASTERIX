@@ -82,14 +82,15 @@ size_t RepetetiveItemParser::parseItem(const char* data, size_t index, size_t si
     if (debug)
         loginf << "parsing repetitive item '" + name_ + "' repetition item" << logendl;
 
+    // Read REP count directly from binary (always 1 byte unsigned per ASTERIX spec)
+    unsigned int rep = static_cast<unsigned char>(data[index + parsed_bytes]);
+
+    // Still call sub-parser to write REP to JSON for output
     parsed_bytes = repetition_item_->parseItem(
                 data, index + parsed_bytes, size, parsed_bytes, total_size, target, debug);
 
-    unsigned int rep = target.at("REP");
-
     traced_assert(!target.contains(name_));
-    target[name_] = json::array();
-    json& j_data = target.at(name_);
+    json& j_data = target[name_] = json::array();
 
     if (debug)
         loginf << "parsing repetitive item '" + name_ + "' items " << rep << " times" << logendl;

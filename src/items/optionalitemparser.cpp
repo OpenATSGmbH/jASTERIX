@@ -97,22 +97,20 @@ size_t OptionalItemParser::parseItem(const char* data, size_t index, size_t size
 
     bool item_exists = bitfield.at(bitfield_index_);
 
-    if (debug)
-        loginf << "parsing optional item '" << name_ << "' with " << data_fields_.size()
-               << " data fields, exists " << item_exists << logendl;
-
     if (!item_exists)
         return 0;
 
+    // item exists — parse sub-items
     size_t parsed_bytes{0};
 
     if (debug)
         loginf << "parsing optional item '" + name_ + "' sub-items";
 
+    json& opt_target = target[name_];
     for (auto& df_item : data_fields_)
     {
         parsed_bytes += df_item->parseItem(
-                    data, index + parsed_bytes, size, current_parsed_bytes, total_size, target[name_], debug);
+                    data, index + parsed_bytes, size, current_parsed_bytes, total_size, opt_target, debug);
     }
 
     if (debug)

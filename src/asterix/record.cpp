@@ -138,6 +138,33 @@ Record::Record(const nlohmann::json& item_definition) : ItemParserBase(item_defi
 
         items_[item_number] = std::unique_ptr<ItemParserBase>{item};
     }
+
+    // Build flat lookup vectors for O(1) UAP item access during parsing
+    for (const auto& uap_name : uap_names_)
+    {
+        if (uap_name == "FX" || uap_name == "-" || uap_name == "SP" || uap_name == "RE")
+            uap_items_.push_back(nullptr);
+        else
+        {
+            auto it = items_.find(uap_name);
+            uap_items_.push_back(it != items_.end() ? it->second.get() : nullptr);
+        }
+    }
+
+    for (auto& [key, cond_names] : conditional_uap_names_)
+    {
+        auto& cond_items = conditional_uap_items_[key];
+        for (const auto& uap_name : cond_names)
+        {
+            if (uap_name == "FX" || uap_name == "-" || uap_name == "SP" || uap_name == "RE")
+                cond_items.push_back(nullptr);
+            else
+            {
+                auto it = items_.find(uap_name);
+                cond_items.push_back(it != items_.end() ? it->second.get() : nullptr);
+            }
+        }
+    }
 }
 
 size_t Record::parseItem(const char* data, size_t index, size_t size, size_t current_parsed_bytes, size_t total_size,
@@ -163,10 +190,7 @@ size_t Record::parseItem(const char* data, size_t index, size_t size, size_t cur
     parsed_bytes = field_specification_->parseItem(data, index + parsed_bytes, size, parsed_bytes, total_size,
                                                    target, debug);
 
-    if (!target.contains("FSPEC"))
-        throw runtime_error("record item '" + name_ + "' FSPEC not found");
-
-    std::vector<bool> fspec_bits = target.at("FSPEC");
+    const json& fspec_bits = target.at("FSPEC");
 
     if (fspec_bits.size() > max_fspec_bits_)
         throw runtime_error("record item '" + name_ +
@@ -182,56 +206,40 @@ size_t Record::parseItem(const char* data, size_t index, size_t size, size_t cur
     bool special_purpose_field_present{false};
     bool reserved_expansion_field_present{false};
 
-    for (const auto& item_name : uap_names_)  // parse static uap items
+    size_t uap_size = uap_items_.size();
+    for (; uap_cnt < num_fspec_bits && uap_cnt < uap_size; ++uap_cnt)
     {
         if (debug)
-            loginf << " item name '" + item_name + "'" << logendl;
+            loginf << " item name '" + uap_names_[uap_cnt] + "'" << logendl;
 
-        if (uap_cnt >= num_fspec_bits)
-            break;
+        if (!fspec_bits[uap_cnt].get<bool>())
+            continue;
 
-        if (fspec_bits.at(uap_cnt))
+        ItemParserBase* item_parser = uap_items_[uap_cnt];
+        if (!item_parser)
         {
-            uap_cnt++;
-
-            if (item_name == "FX")  // extension into next byte
-                continue;
-
-            if (item_name == "-")  // bit not used
-                continue;
-
-            if (item_name == "SP")  // special purpose field
-            {
+            // FX, -, SP, or RE entry
+            const auto& item_name = uap_names_[uap_cnt];
+            if (item_name == "SP")
                 special_purpose_field_present = true;
-                continue;
-            }
-
-            if (item_name == "RE")  // reserved expansion field
-            {
+            else if (item_name == "RE")
                 reserved_expansion_field_present = true;
-                continue;
-            }
-
-            if (debug)
-                loginf << "parsing record item '" << name_ << "' data item '" << item_name
-                       << "' index " << index + parsed_bytes << logendl;
-
-            if (items_.count(item_name) != 1)
-                throw runtime_error("record item '" + name_ + "' references undefined item '" +
-                                    item_name + "'");
-
-            if (index + parsed_bytes >= total_size)
-            {
-                logerr << "unexpected record item at index " << index + parsed_bytes
-                       << " total_size " << total_size << ", quitting";
-                return parsed_bytes;
-            }
-
-            parsed_bytes += items_.at(item_name)->parseItem(data, index + parsed_bytes, size,
-                                                            parsed_bytes, total_size, target, debug);
+            continue;
         }
-        else
-            uap_cnt++;
+
+        if (debug)
+            loginf << "parsing record item '" << name_ << "' data item '" << uap_names_[uap_cnt]
+                   << "' index " << index + parsed_bytes << logendl;
+
+        if (index + parsed_bytes >= total_size)
+        {
+            logerr << "unexpected record item at index " << index + parsed_bytes
+                   << " total_size " << total_size << ", quitting";
+            return parsed_bytes;
+        }
+
+        parsed_bytes += item_parser->parseItem(data, index + parsed_bytes, size,
+                                               parsed_bytes, total_size, target, debug);
     }
 
     if (has_conditional_uap_)
@@ -257,59 +265,51 @@ size_t Record::parseItem(const char* data, size_t index, size_t size, size_t cur
                    << json_value << " found" << logendl;
 
         const auto& current_uap_names = conditional_uap_names_.at(json_value);
+        const auto& current_uap_items = conditional_uap_items_.at(json_value);
+        size_t cond_uap_size = current_uap_items.size();
 
-        for (const auto& item_name : current_uap_names)  // parse dynamic uap items
+        for (size_t cond_idx = 0; uap_cnt < num_fspec_bits && cond_idx < cond_uap_size; ++uap_cnt, ++cond_idx)
         {
-            if (uap_cnt >= num_fspec_bits)
+            if (debug)
             {
-                if (debug)
+                loginf << " conditional item name '" + current_uap_names[cond_idx] + "'" << logendl;
+
+                if (uap_cnt >= num_fspec_bits)
+                {
                     loginf << "conditional uap data item count break, uap_cnt " << uap_cnt
                            << " num_fspec_bits " << num_fspec_bits << logendl;
-                break;
+                    break;
+                }
             }
 
-            if (fspec_bits.at(uap_cnt))
+            if (!fspec_bits[uap_cnt].get<bool>())
+                continue;
+
+            ItemParserBase* item_parser = current_uap_items[cond_idx];
+            if (!item_parser)
             {
-                uap_cnt++;
-
-                if (item_name == "FX")  // extension into next byte
-                    continue;
-
-                if (item_name == "-")  // bit not used
-                    continue;
-
-                if (item_name == "SP")  // special purpose field
-                {
+                // FX, -, SP, or RE entry
+                const auto& item_name = current_uap_names[cond_idx];
+                if (item_name == "SP")
                     special_purpose_field_present = true;
-                    continue;
-                }
-
-                if (item_name == "RE")  // reserved expansion field
-                {
+                else if (item_name == "RE")
                     reserved_expansion_field_present = true;
-                    continue;
-                }
-
-                if (debug)
-                    loginf << "parsing record item '" << name_ << "' data item '"
-                           << item_name << "' index " << index + parsed_bytes << logendl;
-
-                if (items_.count(item_name) != 1)
-                    throw runtime_error("record item '" + name_ +
-                                        "' references undefined item '" + item_name + "'");
-
-                if (index + parsed_bytes >= total_size)
-                {
-                    logerr << "unexpected uap record item at index " << index + parsed_bytes
-                           << " total_size " << total_size << ", quitting";
-                    return parsed_bytes;
-                }
-
-                parsed_bytes += items_.at(item_name)->parseItem(
-                    data, index + parsed_bytes, size, parsed_bytes, total_size, target, debug);
+                continue;
             }
-            else
-                uap_cnt++;
+
+            if (debug)
+                loginf << "parsing record item '" << name_ << "' data item '"
+                       << current_uap_names[cond_idx] << "' index " << index + parsed_bytes << logendl;
+
+            if (index + parsed_bytes >= total_size)
+            {
+                logerr << "unexpected uap record item at index " << index + parsed_bytes
+                       << " total_size " << total_size << ", quitting";
+                return parsed_bytes;
+            }
+
+            parsed_bytes += item_parser->parseItem(
+                data, index + parsed_bytes, size, parsed_bytes, total_size, target, debug);
         }
     }
 

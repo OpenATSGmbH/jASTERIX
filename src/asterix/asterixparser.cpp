@@ -160,11 +160,12 @@ std::tuple<size_t, size_t, bool, bool> ASTERIXParser::findDataBlocks(
 
             parsed_data_block_bytes = 0;
 
+            nlohmann::json& current_block = (*target)[data_block_name_][num_blocks];
             for (auto& r_item : data_block_items_)
             {
                 parsed_bytes =
                     r_item->parseItem(data, current_index, length, parsed_data_block_bytes, total_size,
-                                      (*target)[data_block_name_][num_blocks], debug);
+                                      current_block, debug);
                 //            loginf << "UGA FP2 parsed " << parsed_bytes << " target '" <<
                 //            target[data_block_name_][num_blocks]
                 //                      << "'" << logendl;

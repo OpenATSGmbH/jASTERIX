@@ -25,6 +25,7 @@
 #include <sstream>
 #include <cassert>
 #include <string>
+#include <vector>
 
 namespace jASTERIX
 {

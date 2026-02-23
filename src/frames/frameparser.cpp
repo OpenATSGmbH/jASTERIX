@@ -156,6 +156,7 @@ std::tuple<size_t, size_t, bool, bool> FrameParser::findFrames(const char* data,
         }
 
         parsed_bytes_frame = 0;
+        nlohmann::json& current_frame = j_frames[chunk_frames_cnt];
         for (auto& j_item : frame_items_)
         {
             if (index + parsed_bytes_sum >= total_size)
@@ -174,11 +175,11 @@ std::tuple<size_t, size_t, bool, bool> FrameParser::findFrames(const char* data,
 
             parsed_bytes =
                 j_item->parseItem(data, index + parsed_bytes_sum, total_size - parsed_bytes_sum,
-                                  parsed_bytes_frame, total_size, j_frames[chunk_frames_cnt], debug);
-            j_frames[chunk_frames_cnt]["cnt"] = chunk_frames_cnt;
+                                  parsed_bytes_frame, total_size, current_frame, debug);
             parsed_bytes_frame += parsed_bytes;
             parsed_bytes_sum += parsed_bytes;
         }
+        current_frame["cnt"] = chunk_frames_cnt;
         //        loginf << "UGA FP FOUND '" << j_frames[chunk_frames_cnt].dump(4) << "'" <<
         //        logendl;
 

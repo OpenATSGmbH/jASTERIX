@@ -69,8 +69,7 @@ size_t ExtendableItemParser::parseItem(const char* data, size_t index, size_t si
     unsigned int cnt = 0;
 
     traced_assert(!target.contains(name_));
-    target[name_] = json::array();
-    json& j_data = target.at(name_);
+    json& j_data = target[name_] = json::array();
 
     while (extend)
     {
@@ -81,14 +80,15 @@ size_t ExtendableItemParser::parseItem(const char* data, size_t index, size_t si
                        << data_item_it->name() << "' index " << index + parsed_bytes << " cnt "
                        << cnt << logendl;
 
+            json& current = j_data[cnt];
             parsed_bytes += data_item_it->parseItem(
-                        data, index + parsed_bytes, size, parsed_bytes, total_size, j_data[cnt], debug);
+                        data, index + parsed_bytes, size, parsed_bytes, total_size, current, debug);
 
-            if (debug && !j_data.at(cnt).contains("extend"))
+            if (debug && !current.contains("extend"))
                 throw runtime_error("parsing extendable item '" + name_ +
                                     "' without extend information");
 
-            extend = j_data.at(cnt).at("extend");
+            extend = current.at("extend");
 
             ++cnt;
         }

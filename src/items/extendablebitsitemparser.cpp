@@ -112,7 +112,7 @@ size_t ExtendableBitsItemParser::parseItem(const char* data, size_t index, size_
         if (reverse_order_)
             std::reverse(bitfield.begin(), bitfield.end());
 
-        target.emplace(name_, bitfield);
+        target.emplace(name_, std::move(bitfield));
 
         if (debug)
             loginf << "extendable bits item '" + name_ + "'"

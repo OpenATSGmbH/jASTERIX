@@ -395,7 +395,7 @@ size_t FixedBitsItemParser::parseItem(const char* data, size_t index, size_t siz
                            << " cnt " << cnt << " characters tmp '" << characters_tmp << "' value "
                            << (size_t)char_tmp1 << " bitmask " << chars_bitmasks1[cnt] << logendl;
             }
-            target.emplace(name_, characters_tmp);
+            target.emplace(name_, std::move(characters_tmp));
         }
         else
             throw runtime_error("fixed bits item '" + name_ + "' parsing with unknown data type '" +
@@ -507,7 +507,7 @@ size_t FixedBitsItemParser::parseItem(const char* data, size_t index, size_t siz
                            << cnt << " characters tmp '" << characters_tmp << "' value "
                            << (size_t)char_tmp4 << " bitmask " << chars_bitmasks4[cnt] << logendl;
             }
-            target.emplace(name_, characters_tmp);
+            target.emplace(name_, std::move(characters_tmp));
         }
         else
             throw runtime_error("fixed bits item '" + name_ + "' parsing with unknown data type '" +
@@ -598,7 +598,7 @@ size_t FixedBitsItemParser::parseItem(const char* data, size_t index, size_t siz
                            << cnt << " characters tmp '" << characters_tmp << "' value "
                            << (size_t)char_tmp8 << " bitmask " << chars_bitmasks8[cnt] << logendl;
             }
-            target.emplace(name_, characters_tmp);
+            target.emplace(name_, std::move(characters_tmp));
         }
         else
             throw runtime_error("fixed bits item '" + name_ + "' parsing with unknown data type '" +

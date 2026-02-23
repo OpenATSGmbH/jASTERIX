@@ -58,6 +58,11 @@ class Record : public ItemParserBase
     std::map<std::string, std::vector<std::string>> conditional_uap_names_;
     std::map<std::string, std::unique_ptr<ItemParserBase>> items_;
 
+    // Pre-built flat vectors for O(1) UAP item lookup (indexed by FSPEC position)
+    // nullptr entries for FX, -, SP, RE positions
+    std::vector<ItemParserBase*> uap_items_;
+    std::map<std::string, std::vector<ItemParserBase*>> conditional_uap_items_;
+
     bool decode_ref_{false};
     std::shared_ptr<ReservedExpansionField> ref_;
     std::shared_ptr<SpecialPurposeField> spf_;
