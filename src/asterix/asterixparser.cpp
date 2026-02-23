@@ -383,6 +383,14 @@ std::pair<size_t, size_t> ASTERIXParser::decodeDataBlock(const char* data, size_
                 // parsed_bytes_record
                 // << " length " << record_length;
 
+                if (data_block_index + data_block_parsed_bytes >= total_size)
+                {
+                    logerr << "unexpected data block item at index "
+                           << data_block_index + data_block_parsed_bytes
+                           << " total_size " << total_size << ", quitting";
+                    break;
+                }
+
                 record_parsed_bytes =
                     records_.at(cat)->parseItem(
                             data, data_block_index + data_block_parsed_bytes,

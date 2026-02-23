@@ -145,12 +145,20 @@ size_t Record::parseItem(const char* data, size_t index, size_t size, size_t cur
 {
     if (debug)
         loginf << "parsing record item '" << name_ << "' with index " << index << " size " << size
-               << " current parsed bytes " << current_parsed_bytes << logendl;
+               << " current parsed bytes " << current_parsed_bytes
+               << " total_size " << total_size << logendl;
 
     size_t parsed_bytes{0};
 
     if (debug)
         loginf << "parsing record item '" + name_ + "' field specification" << logendl;
+
+    if (index + parsed_bytes >= total_size)
+    {
+        logerr << "unexpected record item at index " << index + parsed_bytes
+               << " total_size " << total_size << ", quitting";
+        return parsed_bytes;
+    }
 
     parsed_bytes = field_specification_->parseItem(data, index + parsed_bytes, size, parsed_bytes, total_size,
                                                    target, debug);
@@ -211,6 +219,13 @@ size_t Record::parseItem(const char* data, size_t index, size_t size, size_t cur
             if (items_.count(item_name) != 1)
                 throw runtime_error("record item '" + name_ + "' references undefined item '" +
                                     item_name + "'");
+
+            if (index + parsed_bytes >= total_size)
+            {
+                logerr << "unexpected record item at index " << index + parsed_bytes
+                       << " total_size " << total_size << ", quitting";
+                return parsed_bytes;
+            }
 
             parsed_bytes += items_.at(item_name)->parseItem(data, index + parsed_bytes, size,
                                                             parsed_bytes, total_size, target, debug);
@@ -283,6 +298,13 @@ size_t Record::parseItem(const char* data, size_t index, size_t size, size_t cur
                     throw runtime_error("record item '" + name_ +
                                         "' references undefined item '" + item_name + "'");
 
+                if (index + parsed_bytes >= total_size)
+                {
+                    logerr << "unexpected uap record item at index " << index + parsed_bytes
+                           << " total_size " << total_size << ", quitting";
+                    return parsed_bytes;
+                }
+
                 parsed_bytes += items_.at(item_name)->parseItem(
                     data, index + parsed_bytes, size, parsed_bytes, total_size, target, debug);
             }
@@ -315,6 +337,13 @@ size_t Record::parseItem(const char* data, size_t index, size_t size, size_t cur
                 {
                     traced_assert(re_bytes >= 1);
 
+                    if (index + parsed_bytes >= total_size)
+                    {
+                        logerr << "unexpected record ref item at index " << index + parsed_bytes
+                               << " total_size " << total_size << ", quitting";
+                        return parsed_bytes;
+                    }
+
                     size_t ref_bytes =
                         ref_->parseItem(data, index + parsed_bytes, re_bytes, 0, total_size, target["REF"], debug);
 
@@ -344,6 +373,13 @@ size_t Record::parseItem(const char* data, size_t index, size_t size, size_t cur
 
                 if (index + parsed_bytes + re_bytes > total_size)
                     throw std::runtime_error("reserved expansion field longer than max size");
+
+                if (index + parsed_bytes >= total_size)
+                {
+                    logerr << "unexpected record item ref at index " << index + parsed_bytes
+                           << " total_size " << total_size << ", quitting";
+                    return parsed_bytes;
+                }
 
                 target["REF"] = binary2hex((const unsigned char*)&data[index + parsed_bytes], re_bytes);
 
@@ -376,6 +412,13 @@ size_t Record::parseItem(const char* data, size_t index, size_t size, size_t cur
                 {
                     traced_assert(re_bytes >= 1);
 
+                    if (index + parsed_bytes >= total_size)
+                    {
+                        logerr << "unexpected record spf item at index " << index + parsed_bytes
+                               << " total_size " << total_size << ", quitting";
+                        return parsed_bytes;
+                    }
+
                     size_t ref_bytes = spf_->parseItem(
                         data, index + parsed_bytes, re_bytes, 0, total_size, target["SPF"], debug);
 
@@ -405,6 +448,13 @@ size_t Record::parseItem(const char* data, size_t index, size_t size, size_t cur
 
                 if (index + parsed_bytes + re_bytes > total_size)
                     throw std::runtime_error("special purpose field longer than max size");
+
+                if (index + parsed_bytes >= total_size)
+                {
+                    logerr << "unexpected record spf item at index " << index + parsed_bytes
+                           << " total_size " << total_size << ", quitting";
+                    return parsed_bytes;
+                }
 
                 target["SPF"] = binary2hex((const unsigned char*)&data[index + parsed_bytes], re_bytes);
                 parsed_bytes += re_bytes;

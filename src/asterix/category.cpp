@@ -45,11 +45,11 @@ Category::Category(const std::string& number, const nlohmann::json& definition,
     default_edition_ = definition.at("default_edition");
 
     //    "default_ref_edition" : "1.8",
-    if (definition.contains("default_ref_edition"))  // is optional
+    if (definition.contains("default_ref_edition") && definition.at("default_ref_edition") != "")  // is optional
         default_ref_edition_ = definition.at("default_ref_edition");
 
     //    "default_spf_edition" : "ARTAS",
-    if (definition.contains("default_spf_edition"))  // is optional
+    if (definition.contains("default_spf_edition") && definition.at("default_spf_edition") != "")  // is optional
         default_spf_edition_ = definition.at("default_spf_edition");
 
     // decode flag
@@ -116,7 +116,8 @@ Category::Category(const std::string& number, const nlohmann::json& definition,
                 std::make_shared<SPFEdition>(ed_def_it.key(), ed_def_it.value(), definition_path);
         }
 
-        if (spf_editions_.count(default_spf_edition_) != 1)
+        if (default_spf_edition_.size()
+            && spf_editions_.count(default_spf_edition_) != 1)
             throw invalid_argument("category '" + number_ + "' default SPF edition '" +
                                    default_spf_edition_ + "' not defined");
     }

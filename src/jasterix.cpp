@@ -253,11 +253,12 @@ std::unique_ptr<nlohmann::json> jASTERIX::analyzeFile(
     size_t num_callback_frames;
     std::pair<size_t, size_t> dec_ret{0, 0};
 
-    while (!stop_decoding_ && !task->errorOcurred())
+    while (!stop_decoding_) //  && !task->errorOcurred()
     {
         if (data_processing_done_ && data_chunks_.empty())
+        {
             break;
-
+        }
         if (data_chunks_.empty())
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -332,14 +333,15 @@ std::unique_ptr<nlohmann::json> jASTERIX::analyzeFile(
 
     if (task->errorOcurred())
     {
-        unsigned int num_errors {0};
+        // unsigned int num_errors {0};
 
-        if (analysis_result->contains("num_errors"))
-            num_errors = analysis_result->at("num_errors");
+        // if (analysis_result->contains("num_errors"))
+        //     num_errors = analysis_result->at("num_errors");
 
-        ++num_errors;
+        // ++num_errors;
 
-        (*analysis_result)["num_errors"] = num_errors;
+        // (*analysis_result)["num_errors"] = num_errors;
+        (*analysis_result)["num_frame_errors"] = 1;
     }
 
     if (!task->done()) // aborted
@@ -1006,7 +1008,7 @@ void jASTERIX::addDataBlockChunk(std::unique_ptr<nlohmann::json> data_block_chun
 
 void jASTERIX::addDataChunk(std::unique_ptr<nlohmann::json> data_chunk, bool done)
 {
-    //loginf << "jASTERIX: addDataChunk";
+    //loginf << "jASTERIX: addDataChunk: done " << done;
 
     if (debug_)
     {

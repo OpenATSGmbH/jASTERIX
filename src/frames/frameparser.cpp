@@ -99,7 +99,8 @@ size_t FrameParser::parseHeader(const char* data, size_t index, size_t total_siz
     return parsed_bytes;
 }
 
-std::tuple<size_t, size_t, bool> FrameParser::findFrames(const char* data, size_t index,
+// parsed bytes, num frames, done flag, error flag
+std::tuple<size_t, size_t, bool, bool> FrameParser::findFrames(const char* data, size_t index,
                                                          size_t total_size, nlohmann::json* target,
                                                          bool debug)
 {
@@ -124,6 +125,7 @@ std::tuple<size_t, size_t, bool> FrameParser::findFrames(const char* data, size_
 
     bool hit_frame_limit{false};
     bool hit_frame_chunk_limit{false};
+    bool error_flag{false};
 
     while (index + parsed_bytes_sum < total_size)
     {
@@ -156,9 +158,19 @@ std::tuple<size_t, size_t, bool> FrameParser::findFrames(const char* data, size_
         parsed_bytes_frame = 0;
         for (auto& j_item : frame_items_)
         {
+            if (index + parsed_bytes_sum >= total_size)
+            {
+                logerr << "unexpected quit at index " << index + parsed_bytes_sum << " frame pb "
+                       << parsed_bytes_frame << " cnt " << chunk_frames_cnt << logendl;
+                error_flag = true; // too long
+                break;
+            }
+
             if (debug)
                 loginf << "found frame item at index " << index + parsed_bytes_sum << " frame pb "
                        << parsed_bytes_frame << " cnt " << chunk_frames_cnt << logendl;
+
+            assert (index + parsed_bytes_sum < total_size);
 
             parsed_bytes =
                 j_item->parseItem(data, index + parsed_bytes_sum, total_size - parsed_bytes_sum,
@@ -174,9 +186,10 @@ std::tuple<size_t, size_t, bool> FrameParser::findFrames(const char* data, size_
         ++sum_frames_cnt_;
     }
 
-    return std::make_tuple(parsed_bytes_sum, chunk_frames_cnt,
-                           hit_frame_limit ? true : !hit_frame_chunk_limit);
+    bool done_flag = hit_frame_limit ? true : !hit_frame_chunk_limit;
     // done if frame limit hit, if not -> done if frame chunk limit not hit
+
+    return std::make_tuple(parsed_bytes_sum, chunk_frames_cnt, done_flag, error_flag);
 }
 
 std::pair<size_t, size_t> FrameParser::decodeFrames(const char* data, size_t total_size, json* target, bool debug)
