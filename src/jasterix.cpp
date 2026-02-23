@@ -255,27 +255,24 @@ std::unique_ptr<nlohmann::json> jASTERIX::analyzeFile(
 
     while (!stop_decoding_) //  && !task->errorOcurred()
     {
-        if (data_processing_done_ && data_chunks_.empty())
-        {
-            break;
-        }
-        if (data_chunks_.empty())
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            continue;
-        }
-
         traced_assert(!data_chunk);
 
-        data_chunks_mutex_.lock();
+        {
+            std::unique_lock<std::mutex> lock(data_chunks_mutex_);
+            data_chunks_cv_.wait(lock, [this] {
+                return !data_chunks_.empty() || data_processing_done_ || stop_decoding_;
+            });
 
-                //loginf << "jASTERIX: analyze frame chunks " << data_chunks_.size() << logendl;
-                //  mostly 2. mostly.
+            if (stop_decoding_ || data_chunks_.empty())
+                break;
 
-        data_chunk = std::move(data_chunks_.front());
-        data_chunks_.pop_front();
+            //loginf << "jASTERIX: analyze frame chunks " << data_chunks_.size() << logendl;
+            //  mostly 2. mostly.
 
-        data_chunks_mutex_.unlock();
+            data_chunk = std::move(data_chunks_.front());
+            data_chunks_.pop_front();
+        }
+        data_chunks_cv_.notify_one();  // wake producer from backpressure
 
         if (debug_)
             loginf << "jASTERIX: analyze decoding frames" << logendl;
@@ -478,27 +475,25 @@ std::unique_ptr<nlohmann::json> jASTERIX::analyzeData(const char* data, unsigned
 
     while (!stop_decoding_)
     {
-        if (data_block_processing_done_ && data_block_chunks_.empty())
-            break;
-
-        if (data_block_chunks_.empty())
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            continue;
-        }
-
-                // loginf << "jasterix: task done " << data_block_processing_done_ << " empty " <<
-                // data_block_chunks_.empty()
-                // << logendl;
+        // loginf << "jasterix: task done " << data_block_processing_done_ << " empty " <<
+        // data_block_chunks_.empty()
+        // << logendl;
 
         traced_assert(!data_block_chunk);
 
-        data_block_chunks_mutex_.lock();
+        {
+            std::unique_lock<std::mutex> lock(data_block_chunks_mutex_);
+            data_block_chunks_cv_.wait(lock, [this] {
+                return !data_block_chunks_.empty() || data_block_processing_done_ || stop_decoding_;
+            });
 
-        data_block_chunk = std::move(data_block_chunks_.front());
-        data_block_chunks_.pop_front();
+            if (stop_decoding_ || data_block_chunks_.empty())
+                break;
 
-        data_block_chunks_mutex_.unlock();
+            data_block_chunk = std::move(data_block_chunks_.front());
+            data_block_chunks_.pop_front();
+        }
+        data_block_chunks_cv_.notify_one();  // wake producer from backpressure
 
         if (debug_)
             loginf << "jasterix: analyze decoding data block" << logendl;
@@ -691,23 +686,21 @@ void jASTERIX::decodeFile(
 
     while (!stop_decoding_)
     {
-        if (data_processing_done_ && data_chunks_.empty())
-            break;
-
-        if (data_chunks_.empty())
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            continue;
-        }
-
         traced_assert(!data_chunk);
 
-        data_chunks_mutex_.lock();
+        {
+            std::unique_lock<std::mutex> lock(data_chunks_mutex_);
+            data_chunks_cv_.wait(lock, [this] {
+                return !data_chunks_.empty() || data_processing_done_ || stop_decoding_;
+            });
 
-        data_chunk = std::move(data_chunks_.front());
-        data_chunks_.pop_front();
+            if (stop_decoding_ || data_chunks_.empty())
+                break;
 
-        data_chunks_mutex_.unlock();
+            data_chunk = std::move(data_chunks_.front());
+            data_chunks_.pop_front();
+        }
+        data_chunks_cv_.notify_one();  // wake producer from backpressure
 
         if (debug_)
             loginf << "jASTERIX: decoding frames" << logendl;
@@ -806,27 +799,25 @@ void jASTERIX::decodeFile(
             break;
         }
 
-        if (data_block_processing_done_ && data_block_chunks_.empty())
-            break;
-
-        if (data_block_chunks_.empty())
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            continue;
-        }
-
-                // loginf << "jasterix: task done " << data_block_processing_done_ << " empty " <<
-                // data_block_chunks_.empty()
-                // << logendl;
+        // loginf << "jasterix: task done " << data_block_processing_done_ << " empty " <<
+        // data_block_chunks_.empty()
+        // << logendl;
 
         traced_assert(!data_block_chunk);
 
-        data_block_chunks_mutex_.lock();
+        {
+            std::unique_lock<std::mutex> lock(data_block_chunks_mutex_);
+            data_block_chunks_cv_.wait(lock, [this] {
+                return !data_block_chunks_.empty() || data_block_processing_done_ || stop_decoding_;
+            });
 
-        data_block_chunk = std::move(data_block_chunks_.front());
-        data_block_chunks_.pop_front();
+            if (stop_decoding_ || data_block_chunks_.empty())
+                break;
 
-        data_block_chunks_mutex_.unlock();
+            data_block_chunk = std::move(data_block_chunks_.front());
+            data_block_chunks_.pop_front();
+        }
+        data_block_chunks_cv_.notify_one();  // wake producer from backpressure
 
         if (debug_)
             loginf << "jasterix: decoding data block" << logendl;
@@ -874,6 +865,8 @@ void jASTERIX::decodeFile(
 void jASTERIX::stopDecoding()
 {
     stop_decoding_ = true;
+    data_block_chunks_cv_.notify_all();
+    data_chunks_cv_.notify_all();
 }
 
 void jASTERIX::decodeData(const char* data, 
@@ -907,27 +900,26 @@ void jASTERIX::decodeData(const char* data,
 
     while (!abortable || !stop_decoding_)
     {
-        if (data_block_processing_done_ && data_block_chunks_.empty())
-            break;
-
-        if (data_block_chunks_.empty())
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            continue;
-        }
-
-                // loginf << "jasterix: task done " << data_block_processing_done_ << " empty " <<
-                // data_block_chunks_.empty()
-                // << logendl;
+        // loginf << "jasterix: task done " << data_block_processing_done_ << " empty " <<
+        // data_block_chunks_.empty()
+        // << logendl;
 
         traced_assert(!data_block_chunk);
 
-        data_block_chunks_mutex_.lock();
+        {
+            std::unique_lock<std::mutex> lock(data_block_chunks_mutex_);
+            data_block_chunks_cv_.wait(lock, [this, abortable] {
+                return !data_block_chunks_.empty() || data_block_processing_done_
+                       || (abortable && stop_decoding_);
+            });
 
-        data_block_chunk = std::move(data_block_chunks_.front());
-        data_block_chunks_.pop_front();
+            if ((abortable && stop_decoding_) || data_block_chunks_.empty())
+                break;
 
-        data_block_chunks_mutex_.unlock();
+            data_block_chunk = std::move(data_block_chunks_.front());
+            data_block_chunks_.pop_front();
+        }
+        data_block_chunks_cv_.notify_one();  // wake producer from backpressure
 
         if (debug_)
             loginf << "jasterix: decoding data block" << logendl;
@@ -992,17 +984,20 @@ void jASTERIX::addDataBlockChunk(std::unique_ptr<nlohmann::json> data_block_chun
     if (error)
         num_errors_ += 1;
 
-    data_block_chunks_mutex_.lock();
-
-    data_block_chunks_.push_back(std::move(data_block_chunk));
-    data_block_processing_done_ = done;
-
-    data_block_chunks_mutex_.unlock();
-
-    while (!data_block_processing_done_ && !debug_ && data_block_chunks_.size() >= 2) // debug forces decoding of all frames first
     {
-        //loginf << "jASTERIX: addDataBlockChunk: sleep";
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::lock_guard<std::mutex> lock(data_block_chunks_mutex_);
+        data_block_chunks_.push_back(std::move(data_block_chunk));
+        data_block_processing_done_ = done;
+    }
+    data_block_chunks_cv_.notify_one();  // wake consumer
+
+    // backpressure: wait if queue is too full (debug forces decoding of all frames first)
+    if (!done && !debug_)
+    {
+        std::unique_lock<std::mutex> lock(data_block_chunks_mutex_);
+        data_block_chunks_cv_.wait(lock, [this] {
+            return data_block_chunks_.size() < 2 || data_block_processing_done_ || debug_ || stop_decoding_;
+        });
     }
 }
 
@@ -1021,20 +1016,25 @@ void jASTERIX::addDataChunk(std::unique_ptr<nlohmann::json> data_chunk, bool don
             throw std::runtime_error("jASTERIX scoped frames information is not array");
     }
 
-    data_chunks_mutex_.lock();
-    data_chunks_.push_back(std::move(data_chunk));
-    data_processing_done_ = done;
-    data_chunks_mutex_.unlock();
-
-            //loginf << "jASTERIX: addDataChunk: sleep";
-
-    while (!data_processing_done_ && !debug_ && data_chunks_.size() >= 2)  // debug forces decoding of all frames first
     {
-        //loginf << "jASTERIX: addDataChunk: sleep";
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::lock_guard<std::mutex> lock(data_chunks_mutex_);
+        data_chunks_.push_back(std::move(data_chunk));
+        data_processing_done_ = done;
+    }
+    data_chunks_cv_.notify_one();  // wake consumer
+
+    //loginf << "jASTERIX: addDataChunk: sleep";
+
+    // backpressure: wait if queue is too full (debug forces decoding of all frames first)
+    if (!done && !debug_)
+    {
+        std::unique_lock<std::mutex> lock(data_chunks_mutex_);
+        data_chunks_cv_.wait(lock, [this] {
+            return data_chunks_.size() < 2 || data_processing_done_ || debug_ || stop_decoding_;
+        });
     }
 
-            //loginf << "jASTERIX: addDataChunk: done";
+    //loginf << "jASTERIX: addDataChunk: done";
 }
 
 const std::string& jASTERIX::dataBlockDefinitionPath() const { return data_block_definition_path_; }
@@ -1247,22 +1247,20 @@ void jASTERIX::addJSONAnalysis(const std::string& sensor_id, const std::string& 
 
 void jASTERIX::clearDataChunks()
 {
-    if (data_chunks_.size())
     {
-        data_chunks_mutex_.lock();
+        std::lock_guard<std::mutex> lock(data_chunks_mutex_);
         data_chunks_.clear();
-        data_chunks_mutex_.unlock();
     }
+    data_chunks_cv_.notify_one();
 }
 
 void jASTERIX::clearDataBlockChunks()
 {
-    if (data_block_chunks_.size())
     {
-        data_block_chunks_mutex_.lock();
+        std::lock_guard<std::mutex> lock(data_block_chunks_mutex_);
         data_block_chunks_.clear();
-        data_block_chunks_mutex_.unlock();
     }
+    data_block_chunks_cv_.notify_one();
 }
 
 

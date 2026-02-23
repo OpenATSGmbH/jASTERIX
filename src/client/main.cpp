@@ -156,7 +156,7 @@ int main(int argc, char** argv)
 
         if (!definition_path.size())
         {
-            logerr << "mandatorgy definition path missing, please use the following arguments: " << logendl << logendl;
+            logerr << "mandatory definition path missing, please use the following arguments: " << logendl << logendl;
             
             loginf << desc;
             return 1;

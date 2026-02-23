@@ -26,6 +26,7 @@
 #include <boost/iostreams/device/mapped_file.hpp>
 #include <deque>
 #include <map>
+#include <condition_variable>
 #include <mutex>
 #include <string>
 
@@ -135,10 +136,12 @@ class jASTERIX
 
     std::deque<std::unique_ptr<nlohmann::json>> data_block_chunks_;
     std::mutex data_block_chunks_mutex_;
+    std::condition_variable data_block_chunks_cv_;
     bool data_block_processing_done_{false};
 
     std::deque<std::unique_ptr<nlohmann::json>> data_chunks_;
     std::mutex data_chunks_mutex_;
+    std::condition_variable data_chunks_cv_;
     bool data_processing_done_{false};
 
     size_t num_frames_{0};

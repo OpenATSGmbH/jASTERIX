@@ -7,7 +7,8 @@ jASTERIX is a C++ library for EUROCONTROL ASTERIX binary data to JSON conversion
 - **OS**: Linux 64-bit (x86_64) only — no Windows or macOS support
 - **Distribution format**: AppImage — single self-contained executable, no installation required. Downloaded from GitHub releases. The AppImage is built on Debian 10 (Buster) via Docker to maximize glibc compatibility across distributions.
 - **Licensing**: Source code is GPL-3.0; AppImage binary is CC BY 4.0. Free for all use including commercial.
-- **Also used as**: An embedded library inside COMPASS for ASTERIX decoding during data import.
+- **Primary use case**: Embedded library inside COMPASS. COMPASS calls `decodeFile()`/`decodeData()` with a callback receiving `std::unique_ptr<nlohmann::json>` chunks for in-memory processing. The CLI client and file output are secondary/rare use cases.
+- **Output contract**: The public API returns `nlohmann::json` objects to the caller — this is a hard interface requirement. COMPASS depends on receiving JSON trees, not raw bytes or strings.
 
 ## Architecture
 
@@ -145,22 +146,49 @@ All source files must include the GPL-3.0 header referencing jASTERIX (see any e
 - **nlohmann/json** — JSON serialization (header-only in `lib/`)
 - **Catch2** — unit testing (header-only in `lib/`)
 
-## Domain concepts
+## ASTERIX binary format (EUROCONTROL-SPEC-0149 Part 1, Ed 3.1)
 
-- **ASTERIX**: EUROCONTROL standard binary format for surveillance data exchange. Data is organized into categories (e.g. CAT048 = radar, CAT062 = tracker, CAT021 = ADS-B).
-- **Category**: An ASTERIX category number (001–252). Each category has one or more editions.
-- **Edition**: A specific version of a category's data item definitions (e.g. CAT048 v1.15, v1.23). Defines the UAP and item structure.
-- **UAP (User Application Profile)**: Ordered list of data item numbers that defines the record structure for a category edition. The FSPEC bits select which UAP items are present.
-- **FSPEC (Field Specification)**: Variable-length bit field at the start of each record indicating which data items are present.
-- **Data Item**: A numbered field within a record (e.g. "010" = Data Source Identifier, "140" = Time of Day). Each has a type (fixed bits, fixed bytes, compound, extendable, repetitive, etc.).
-- **REF (Reserved Expansion Field)**: Optional extension items defined per category edition.
-- **SPF (Special Purpose Field)**: Vendor-specific optional extension items (e.g. ARTAS TRIs for CAT062).
+Understanding the binary format is essential for working on this codebase. The spec reference is `eurocontrol-specification-asterix-part1-ed-3-1.pdf` in the repo root.
+
+### Hierarchy
+
+```
+[Framing]                      Optional network encapsulation (IOSS, RFF, etc.)
+  └─ Data Block                CAT (1 byte) + LEN (2 bytes) + Data Records
+       └─ Data Record          FSPEC + Data Fields (one per FSPEC-selected item)
+            └─ Data Item       Variable structure depending on item type
+                 └─ Subitem    Fixed or variable octets
+                      └─ Element   Individual bit fields within a subitem
+```
+
+### FSPEC — why every record is structurally different
+
+Each Data Record begins with a **Field Specification (FSPEC)** — a variable-length bitmask. Each bit corresponds to an entry in the UAP (User Application Profile), which is an ordered table mapping Field Reference Numbers (FRNs) to Data Items. A bit set to 1 means that Data Item is **present** in this record; 0 means **absent**. The LSB of each FSPEC octet is the FX (Field Extension) bit: FX=1 means another FSPEC octet follows, FX=0 means the FSPEC ends here.
+
+**Key consequence for the decoder**: There is no fixed record layout. Two consecutive records in the same data block (same category) can have completely different sets of data items present. The set of JSON keys emitted per record is determined entirely at parse time by the FSPEC bits in the binary data. Pre-built JSON templates or skeletons per category are not possible — the output shape varies per record.
+
+### Data item types (§5.2.5)
+
+- **Fixed length**: One subitem of N octets (known at definition time).
+- **Extended length (variable)**: Primary subitem + optional secondary subitems chained via FX bits. Length unknown until FX=0 is encountered.
+- **Explicit length**: First octet is a length indicator (LEN), followed by LEN-1 octets of data. Length unknown until first byte is read.
+- **Repetitive**: REP octet gives count N, followed by N identical subitems. Count unknown until REP byte is read.
+- **Compound**: Primary subitem is an FX-extendable presence bitmask (like a mini-FSPEC), selecting which data subitems follow. Each sub-item can itself be fixed, extended, explicit, or repetitive. Structure varies per record.
+
+### Other key concepts
+
+- **Category**: Classification number (001–252). E.g. CAT048 = monoradar, CAT062 = tracker, CAT021 = ADS-B.
+- **Edition**: Version of a category's item definitions (e.g. CAT048 v1.15 vs v1.23). Defines the UAP and all item structures.
+- **UAP (User Application Profile)**: Ordered table mapping FRN positions to data item numbers. Each category/edition has exactly one UAP (some have conditional UAPs selected by a data item value).
+- **REF (Reserved Expansion Field)**: Extension mechanism for categories with blocking (pre-Ed 2.2). Has its own length indicator + items indicator (FX-extendable presence bits).
+- **SPF (Special Purpose Field)**: Vendor-specific escape field with explicit length. Contents defined by the sending system.
 - **Mapping**: Transforms decoded data between formats (e.g. edition-specific field names to normalized names).
-- **Framing**: Network encapsulation format around ASTERIX data blocks (IOSS, IOSS with sequence numbers, RFF, or raw/netto for no framing).
-- **Data Block**: ASTERIX container: 1-byte category + 2-byte length + records.
+- **Framing**: Network encapsulation around ASTERIX data blocks (IOSS, IOSS with sequence numbers, RFF, or raw/netto for no framing).
+- **Data Block**: ASTERIX container: 1-byte CAT + 2-byte LEN + one or more Data Records (for categories using blocking).
 - **SAC/SIC**: System Area Code / System Identification Code — identifies the data source sensor.
 - **Mode 3/A**: SSR transponder code (4-digit octal, 0000–7777).
 - **Mode C**: SSR altitude (flight level in 25ft increments).
+- **FRN (Field Reference Number)**: Position of a data item in the UAP, corresponding to FSPEC bit position.
 
 ## Supported ASTERIX categories
 
