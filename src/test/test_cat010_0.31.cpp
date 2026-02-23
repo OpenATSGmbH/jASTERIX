@@ -273,7 +273,7 @@ void test_cat010_callback(std::unique_ptr<nlohmann::json> json_data, size_t num_
     //    ;  Calculated Track Velocity: spd=4 (0.879 kts); hdg=48656 (267.275 deg)
 
     loginf << "cat010 test: 200" << logendl;
-    REQUIRE(approximatelyEqual(record.at("200").at("Ground Speed"), 2.44140625E-4, 10e-10));
+    REQUIRE(approximatelyEqual(record.at("200").at("Ground Speed"), 0.878906248, 10e-6));
     REQUIRE(approximatelyEqual(record.at("200").at("Track Angle"), 267.275390625, 10e-10));
 
     //    ;  I010/202: =0x ff fe 00 00
