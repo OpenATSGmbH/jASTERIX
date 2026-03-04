@@ -168,6 +168,10 @@ size_t SpecialPurposeField::parseSimpleItem(const char* data, size_t index, size
 
     for (const auto& item_it : simple_items_)  // parse static uap items
     {
+        if (index + parsed_bytes >= total_size)
+            throw runtime_error("SpecialPurposeField '" + name_ + "': simple item at index " +
+                to_string(index + parsed_bytes) + " exceeds total_size " + to_string(total_size));
+
         if (debug)
             loginf << "parsing simple SpecialPurposeField item '" << name_ << "' data item '"
                    << item_it->name() << "' index " << index + parsed_bytes << logendl;
@@ -229,6 +233,10 @@ size_t SpecialPurposeField::parseComplexItem(const char* data, size_t index, siz
             if (debug)
                 loginf << "parsing complex SpecialPurposeField item '" << name_ << "' data item '"
                        << item_name << "' index " << index + parsed_bytes << logendl;
+
+            if (index + parsed_bytes >= total_size)
+                throw runtime_error("SpecialPurposeField '" + name_ + "': complex item at index " +
+                    to_string(index + parsed_bytes) + " exceeds total_size " + to_string(total_size));
 
             if (complex_items_.count(item_name) != 1)
                 throw runtime_error("complex SpecialPurposeField item '" + name_ +

@@ -77,6 +77,11 @@ size_t ItemParser::parseItem(const char* data, size_t index, size_t size,
     {
         parsed_bytes += df_item->parseItem(
                     data, index + parsed_bytes, size, current_parsed_bytes, total_size, item_target, debug);
+
+        if (index + parsed_bytes > total_size)
+            throw runtime_error("ItemParser '" + name_ + "': parsed " +
+                to_string(parsed_bytes) + " bytes at index " + to_string(index) +
+                " exceeds total_size " + to_string(total_size));
     }
 
     if (debug)

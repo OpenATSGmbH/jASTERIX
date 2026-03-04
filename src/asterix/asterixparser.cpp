@@ -462,6 +462,14 @@ std::pair<size_t, size_t> ASTERIXParser::decodeDataBlock(const char* data, size_
 
             ++num_errors;
         }
+
+        if (data_block_parsed_bytes != data_block_length)
+        {
+            logerr << "ASTERIXParser: data block cat " << cat << ": parsed "
+                   << data_block_parsed_bytes << " bytes but block content length is "
+                   << data_block_length << " (" << (data_block_length - data_block_parsed_bytes)
+                   << " bytes unparsed)" << logendl;
+        }
     }
     else if (debug)
         loginf << "asterix parser decoding record with cat " << cat << " index " << data_block_index

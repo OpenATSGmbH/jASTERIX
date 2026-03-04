@@ -98,6 +98,11 @@ size_t FixedBitFieldItemParser::parseItem(const char* data, size_t index, size_t
         return 0;  // no parse
     }
 
+    if (index + length_ > total_size)
+        throw runtime_error("FixedBitFieldItemParser '" + name_ + "': would read " +
+            to_string(length_) + " bytes at index " + to_string(index) +
+            " but total_size is " + to_string(total_size));
+
     for (auto& sub_item_it : items_)
     {
         if (debug)

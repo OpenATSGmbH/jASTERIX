@@ -307,6 +307,11 @@ size_t FixedBitsItemParser::parseItem(const char* data, size_t index, size_t siz
                << " index " << index << " size " << size << " current parsed bytes "
                << current_parsed_bytes << logendl;
 
+    if (index + byte_length_ > total_size)
+        throw runtime_error("FixedBitsItemParser '" + name_ + "': would read " +
+            to_string(byte_length_) + " bytes at index " + to_string(index) +
+            " but total_size is " + to_string(total_size));
+
     unsigned char tmp1{0};
 
     if (byte_length_ == 1)

@@ -64,6 +64,10 @@ size_t ExtendableBitsItemParser::parseItem(const char* data, size_t index, size_
 
         while (value != false)  // last value is extension bit
         {
+            if (index + parsed_bytes >= total_size)
+                throw runtime_error("ExtendableBitsItemParser '" + name_ + "': FX loop at index " +
+                    to_string(index + parsed_bytes) + " exceeds total_size " + to_string(total_size));
+
             const unsigned char current_byte =
                 *reinterpret_cast<const unsigned char*>(&current_data[parsed_bytes]);
 

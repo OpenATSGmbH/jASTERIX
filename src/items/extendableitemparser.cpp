@@ -73,6 +73,10 @@ size_t ExtendableItemParser::parseItem(const char* data, size_t index, size_t si
 
     while (extend)
     {
+        if (index + parsed_bytes >= total_size)
+            throw runtime_error("ExtendableItemParser '" + name_ + "': at index " +
+                to_string(index + parsed_bytes) + " exceeds total_size " + to_string(total_size));
+
         for (auto& data_item_it : items_)
         {
             if (debug)

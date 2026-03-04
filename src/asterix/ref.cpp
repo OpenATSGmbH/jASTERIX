@@ -149,6 +149,10 @@ size_t ReservedExpansionField::parseItem(const char* data, size_t index, size_t 
                 loginf << "parsing ReservedExpansionField item '" << name_ << "' data item '"
                        << item_name << "' index " << index + parsed_bytes << logendl;
 
+            if (index + parsed_bytes >= total_size)
+                throw runtime_error("ReservedExpansionField '" + name_ + "': at index " +
+                    to_string(index + parsed_bytes) + " exceeds total_size " + to_string(total_size));
+
             if (items_.count(item_name) != 1)
                 throw runtime_error("ReservedExpansionField item '" + name_ +
                                     "' references undefined item '" + item_name + "'");

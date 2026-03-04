@@ -92,6 +92,11 @@ size_t CompoundItemParser::parseItem(const char* data, size_t index, size_t size
 
         parsed_bytes += data_item_it->parseItem(
                     data, index + parsed_bytes, size, parsed_bytes, total_size, target, debug);
+
+        if (index + parsed_bytes > total_size)
+            throw runtime_error("CompoundItemParser '" + name_ + "': parsed " +
+                to_string(parsed_bytes) + " bytes at index " + to_string(index) +
+                " exceeds total_size " + to_string(total_size));
     }
 
     return parsed_bytes;

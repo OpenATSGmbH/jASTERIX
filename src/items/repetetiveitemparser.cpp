@@ -79,6 +79,10 @@ size_t RepetetiveItemParser::parseItem(const char* data, size_t index, size_t si
 
     size_t parsed_bytes{0};
 
+    if (index >= total_size)
+        throw runtime_error("RepetetiveItemParser '" + name_ + "': REP byte at index " +
+            to_string(index) + " exceeds total_size " + to_string(total_size));
+
     if (debug)
         loginf << "parsing repetitive item '" + name_ + "' repetition item" << logendl;
 

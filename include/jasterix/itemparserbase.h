@@ -38,15 +38,23 @@ public:
     static ItemParserBase* createItemParser(const nlohmann::json& item_definition,
                                             const std::string& long_name_prefix);
 
-    // always return number of parsed bytes
-    // size can be for sub-item parsing and relative to index (already parsed),
-    // total size always largest possible, e.g. file size
+    // Parse binary ASTERIX data into JSON. Returns number of bytes consumed.
+    // @param data                Pointer to the full binary data buffer
+    // @param index               Absolute byte offset where this item starts in 'data'
+    // @param size                Remaining bytes in the current data block content
+    // @param current_parsed_bytes  Bytes parsed so far within the enclosing record/REF/SPF
+    // @param total_size          Total buffer size — hard upper bound for any data[offset] access
+    // @param target              JSON object to write parsed values into
+    // @param debug               Enable debug logging
     virtual size_t parseItem(const char* data, size_t index, size_t size,
                              size_t current_parsed_bytes, size_t total_size,
                              nlohmann::json& target, bool debug) = 0;
 
     // Encode JSON back to binary ASTERIX. Returns number of bytes written.
-    // target buffer must be pre-allocated with sufficient space.
+    // @param source    JSON object containing the values to encode
+    // @param target    Pre-allocated output buffer to write binary data into
+    // @param max_size  Available space in the target buffer
+    // @param debug     Enable debug logging
     virtual size_t encodeItem(const nlohmann::json& source, char* target,
                               size_t max_size, bool debug) = 0;
     std::string name() const;

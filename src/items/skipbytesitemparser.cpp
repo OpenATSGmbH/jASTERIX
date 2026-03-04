@@ -45,6 +45,11 @@ size_t SkipBytesItemParser::parseItem(const char* data, size_t index, size_t siz
                << length_ << " index " << index << " size " << size << " current parsed bytes "
                << current_parsed_bytes << logendl;
 
+    if (index + length_ > total_size)
+        throw runtime_error("SkipBytesItemParser '" + name_ + "': skip " +
+            to_string(length_) + " bytes at index " + to_string(index) +
+            " exceeds total_size " + to_string(total_size));
+
     return length_;
 }
 
