@@ -69,7 +69,11 @@ int main(int argc, char **argv)
         return returnCode;
 
     if (definition_path.size())
+    {
+        if (definition_path.back() != '/')
+            definition_path += '/';
         loginf << "definition_path: '" << definition_path << "'" << logendl;
+    }
     else
     {
         loginf << "definition_path variable missing" << logendl;
@@ -77,7 +81,11 @@ int main(int argc, char **argv)
     }
 
     if (data_path.size())
+    {
+        if (data_path.back() != '/')
+            data_path += '/';
         loginf << "data_path: '" << data_path << "'" << logendl;
+    }
     else
     {
         loginf << "data_path variable missing" << logendl;
