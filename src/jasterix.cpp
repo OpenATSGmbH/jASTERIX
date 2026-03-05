@@ -941,12 +941,22 @@ void jASTERIX::stopDecoding()
     data_chunks_cv_.notify_all();
 }
 
-void jASTERIX::decodeData(const char* data, 
+void jASTERIX::decodeData(const char* data,
                           unsigned int total_size,
                           std::function<void(std::unique_ptr<nlohmann::json>, size_t, size_t, size_t)> data_callback,
-                          bool abortable)
+                          bool abortable,
+                          bool do_flat)
 {
     static ASTERIXParser asterix_parser_instance (data_block_definition_, category_definitions_, debug_);
+
+    if (do_flat)
+    {
+        flat_record_indices_.clear();
+        setupFlatColumns();
+        asterix_parser_instance.setFlatRecordIndices(&flat_record_indices_);
+    }
+    else
+        asterix_parser_instance.setFlatRecordIndices(nullptr);
 
     data_block_processing_done_ = false;
 
@@ -1009,13 +1019,28 @@ void jASTERIX::decodeData(const char* data,
             num_records_ += dec_ret.first;
             num_errors_ += dec_ret.second;
 
-            if (print_)
-                std::cout << data_block_chunk->dump(print_dump_indent) << std::endl;
+            if (do_flat)
+            {
+                auto flat_chunk = moveFlatData();
 
-            if (data_callback)
-                data_callback(std::move(data_block_chunk), 0, dec_ret.first, dec_ret.second);
-            else
+                if (print_)
+                    std::cout << flat_chunk->dump(print_dump_indent) << std::endl;
+
+                if (data_callback)
+                    data_callback(std::move(flat_chunk), 0, dec_ret.first, dec_ret.second);
+
                 data_block_chunk = nullptr;
+            }
+            else
+            {
+                if (print_)
+                    std::cout << data_block_chunk->dump(print_dump_indent) << std::endl;
+
+                if (data_callback)
+                    data_callback(std::move(data_block_chunk), 0, dec_ret.first, dec_ret.second);
+                else
+                    data_block_chunk = nullptr;
+            }
         }
         catch (std::exception& e)
         {

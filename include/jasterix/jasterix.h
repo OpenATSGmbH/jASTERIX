@@ -103,7 +103,8 @@ class jASTERIX
     void decodeData(const char* data, unsigned int total_size,
                     std::function<void(std::unique_ptr<nlohmann::json>, size_t, size_t, size_t)>
                     data_callback = nullptr,
-                    bool abortable = true);
+                    bool abortable = true,
+                    bool do_flat = false);
 
     // Encode a single record for a given category into a data block (CAT + LEN + record).
     std::vector<char> encodeRecord(unsigned int category,
