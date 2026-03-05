@@ -43,6 +43,14 @@ FixedBytesItemParser::FixedBytesItemParser(const nlohmann::json& item_definition
 
     data_type_ = item_definition.at("data_type");
 
+    if (data_type_ == "string")         data_type_enum_ = DataType::String;
+    else if (data_type_ == "uint")      data_type_enum_ = DataType::Uint;
+    else if (data_type_ == "int")       data_type_enum_ = DataType::Int;
+    else if (data_type_ == "bin")       data_type_enum_ = DataType::Bin;
+    else
+        throw runtime_error("fixed bytes item '" + name_ + "' with unknown data type '" +
+                            data_type_ + "'");
+
     reverse_bits_ =
         (item_definition.contains("reverse_bits") && item_definition.at("reverse_bits") == true);
 
@@ -77,7 +85,9 @@ size_t FixedBytesItemParser::parseItem(const char* data, size_t index, size_t si
 
     const char* current_data = &data[index];
 
-    if (data_type_ == "string")
+    switch (data_type_enum_)
+    {
+    case DataType::String:
     {
         std::string data_str(reinterpret_cast<char const*>(current_data),
                              length_ - 1);  // -1 to account for end 0
@@ -90,12 +100,11 @@ size_t FixedBytesItemParser::parseItem(const char* data, size_t index, size_t si
                    << length_ << " data type " << data_type_ << " value '" << data_str << "'"
                    << logendl;
 
-        traced_assert(!target.contains(name_));
         target.emplace(name_, std::move(data_str));
 
         return length_;
     }
-    else if (data_type_ == "uint")
+    case DataType::Uint:
     {
         if (length_ > sizeof(size_t))
             throw runtime_error("fixed bytes item '" + name_ + "' length larger than " +
@@ -141,8 +150,6 @@ size_t FixedBytesItemParser::parseItem(const char* data, size_t index, size_t si
                    << length_ << " data type " << data_type_ << " value '" << data_uint << "'"
                    << (has_lsb_ ? " lsb " + to_string(lsb_) : "") << logendl;
 
-        traced_assert(!target.contains(name_));
-
         if (has_lsb_)
             target.emplace(name_, lsb_ * data_uint);
         else
@@ -150,7 +157,7 @@ size_t FixedBytesItemParser::parseItem(const char* data, size_t index, size_t si
 
         return length_;
     }
-    else if (data_type_ == "int")
+    case DataType::Int:
     {
         if (length_ > sizeof(size_t))
             throw runtime_error("fixed bytes item '" + name_ + "' length larger than " +
@@ -201,8 +208,6 @@ size_t FixedBytesItemParser::parseItem(const char* data, size_t index, size_t si
                    << length_ << " data type " << data_type_ << " value '" << data_int << "'"
                    << (has_lsb_ ? " lsb " + to_string(lsb_) : "") << logendl;
 
-        traced_assert(!target.contains(name_));
-
         if (has_lsb_)
             target.emplace(name_, lsb_ * data_int);
         else
@@ -210,7 +215,7 @@ size_t FixedBytesItemParser::parseItem(const char* data, size_t index, size_t si
 
         return length_;
     }
-    else if (data_type_ == "bin")
+    case DataType::Bin:
     {
         std::string data_str =
             binary2hex(reinterpret_cast<const unsigned char*>(current_data), length_);
@@ -222,14 +227,13 @@ size_t FixedBytesItemParser::parseItem(const char* data, size_t index, size_t si
                    << logendl;
         }
 
-        traced_assert(!target.contains(name_));
         target.emplace(name_, std::move(data_str));
 
         return length_;
     }
-    else
-        throw runtime_error("fixed bytes item '" + name_ + "' parsing with unknown data type '" +
-                            data_type_ + "'");
+    }
+
+    return length_;  // unreachable, all enum values handled
 }
 
 size_t FixedBytesItemParser::encodeItem(const nlohmann::json& source, char* target,

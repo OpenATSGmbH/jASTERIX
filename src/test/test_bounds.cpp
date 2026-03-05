@@ -210,6 +210,166 @@ TEST_CASE("Bounds: Compound sub-item truncated", "[bounds]")
     REQUIRE(errors > 0);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// Record-level and data-block-level bounds checks
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Test 8: FSPEC bits exceed UAP definition ───
+// CAT002 UAP has 16 entries (2 FSPEC bytes max). Craft a 3-byte FSPEC (24 bits)
+// by setting FX=1 in bytes 1 and 2, then byte 3 with any content.
+// Record::parseItem checks fspec_bits.size() > max_fspec_bits_ → throws.
+// Data: 02 00 06 01 01 00
+//       CAT LEN  FSPEC-byte1(FX=1) FSPEC-byte2(FX=1) FSPEC-byte3(24 bits > 16)
+TEST_CASE("Bounds: FSPEC exceeds UAP definition", "[bounds]")
+{
+    loginf << "bounds test: FSPEC exceeds UAP start" << logendl;
+
+    jASTERIX::jASTERIX jasterix(definition_path, false, false, false);
+    REQUIRE(jasterix.hasCategory(2));
+    auto cat = jasterix.category(2);
+    REQUIRE(cat->hasEdition("1.0"));
+    cat->setCurrentEdition("1.0");
+    cat->setCurrentMapping("");
+
+    // 3 FSPEC bytes → 24 bits, but CAT002 UAP only defines 16 → throw
+    const char data[] = {0x02, 0x00, 0x06, 0x01, 0x01, 0x00};
+    size_t errors = 0, records = 0;
+
+    decode_malformed(jasterix, data, sizeof(data), errors, records);
+
+    loginf << "bounds test: FSPEC exceeds UAP errors=" << errors
+           << " records=" << records << logendl;
+    REQUIRE(errors > 0);
+}
+
+// ─── Test 9: REF field longer than remaining buffer ───
+// CAT034 has RE at FRN14 (FSPEC byte 2, bit 2) but NO REF definition file,
+// so the else-branch in Record::parseItem stores raw bytes — and checks
+// index + parsed_bytes + re_bytes > total_size → throws
+//   "reserved expansion field longer than max size".
+// FSPEC: byte 1 = 0x01 (FX=1), byte 2 = 0x04 (bit2 = RE, FX=0).
+// REF length byte = 0x20 (32 bytes), but buffer has 0 bytes of REF data.
+// Data: 22 00 06 01 04 20
+//       CAT LEN  FSPEC(2B)  REF-LEN=32 (no REF data)
+TEST_CASE("Bounds: REF field longer than buffer", "[bounds]")
+{
+    loginf << "bounds test: REF field longer than buffer start" << logendl;
+
+    jASTERIX::jASTERIX jasterix(definition_path, false, false, false);
+    REQUIRE(jasterix.hasCategory(34));
+    auto cat = jasterix.category(34);
+    REQUIRE(cat->hasEdition("1.26"));
+    cat->setCurrentEdition("1.26");
+    cat->setCurrentMapping("");
+
+    // FSPEC: 2 bytes selecting only RE. REF length byte claims 32 bytes.
+    const char data[] = {0x22, 0x00, 0x06, 0x01, 0x04, 0x20};
+    size_t errors = 0, records = 0;
+
+    decode_malformed(jasterix, data, sizeof(data), errors, records);
+
+    loginf << "bounds test: REF field longer than buffer errors=" << errors
+           << " records=" << records << logendl;
+    REQUIRE(errors > 0);
+}
+
+// ─── Test 10: SPF field longer than remaining buffer ───
+// CAT002 FSPEC byte 2 has SP at bit position 1 (FRN 14).
+//   byte 1: 0x01 (FX=1), byte 2: 0x04 (bit 2 = SP, FX=0).
+// SPF length byte = 0x30 (48 bytes), but buffer has 0 bytes of SPF data.
+// Record check: index + parsed_bytes + re_bytes > total_size → throws
+//   "special purpose field longer than max size".
+// Data: 02 00 06 01 04 30
+//       CAT LEN  FSPEC(2B)  SPF-LEN=48 (no SPF data)
+TEST_CASE("Bounds: SPF field longer than buffer", "[bounds]")
+{
+    loginf << "bounds test: SPF field longer than buffer start" << logendl;
+
+    jASTERIX::jASTERIX jasterix(definition_path, false, false, false);
+    REQUIRE(jasterix.hasCategory(2));
+    auto cat = jasterix.category(2);
+    REQUIRE(cat->hasEdition("1.0"));
+    cat->setCurrentEdition("1.0");
+    cat->setCurrentMapping("");
+
+    // FSPEC: 2 bytes selecting only SP. SPF length byte claims 48 bytes.
+    const char data[] = {0x02, 0x00, 0x06, 0x01, 0x04, 0x30};
+    size_t errors = 0, records = 0;
+
+    decode_malformed(jasterix, data, sizeof(data), errors, records);
+
+    loginf << "bounds test: SPF field longer than buffer errors=" << errors
+           << " records=" << records << logendl;
+    REQUIRE(errors > 0);
+}
+
+// ─── Test 11: Data block buffer shorter than LEN ───
+// CAT002 LEN=12 (a valid CAT002 block) but actual buffer is only 8 bytes.
+// The data block parse loop checks data_block_index + parsed_bytes >= total_size
+// and breaks. This exercises the asterixparser.cpp loop truncation check.
+// Data: 02 00 0c d4 00 01 01 41
+//       CAT LEN=12  FSPEC 010    000 030[partial]
+// Buffer is 8 bytes but LEN claims 12 → parse loop hits buffer end.
+TEST_CASE("Bounds: data block buffer shorter than LEN", "[bounds]")
+{
+    loginf << "bounds test: data block buffer shorter than LEN start" << logendl;
+
+    jASTERIX::jASTERIX jasterix(definition_path, false, false, false);
+    REQUIRE(jasterix.hasCategory(2));
+    auto cat = jasterix.category(2);
+    REQUIRE(cat->hasEdition("1.0"));
+    cat->setCurrentEdition("1.0");
+    cat->setCurrentMapping("");
+
+    // Valid CAT002 start, but buffer truncated at 8 bytes (LEN says 12).
+    const char data[] = {0x02, 0x00, 0x0c, char(0xd4), 0x00, 0x01, 0x01, 0x41};
+    size_t errors = 0, records = 0;
+
+    decode_malformed(jasterix, data, sizeof(data), errors, records);
+
+    loginf << "bounds test: data block buffer shorter than LEN errors=" << errors
+           << " records=" << records << logendl;
+
+    // Parser should handle gracefully — either error or partial parse, no crash.
+    // The record parse attempt will fail because Time of Day (3 bytes) is incomplete.
+    REQUIRE(errors > 0);
+}
+
+// ─── Test 12: Second record in data block truncated ───
+// Two CAT002 records in one data block. First record is valid (FSPEC 0x40 = item 000
+// only, 2 bytes total). Second record's FSPEC selects item 010 (2 bytes) but buffer
+// only has 1 byte left → FixedBytesItemParser throws on the SIC byte.
+// Record 1: FSPEC=0x40, item 000=0x01 (2 bytes)
+// Record 2: FSPEC=0xD4, SAC=0x00 (ok), SIC at index 7 but total_size=7 → throw
+// Data: 02 00 07 40 01 d4 00
+//       CAT LEN=7  REC1(FSPEC+000) REC2(FSPEC+SAC, SIC missing)
+TEST_CASE("Bounds: second record in data block truncated", "[bounds]")
+{
+    loginf << "bounds test: second record truncated start" << logendl;
+
+    jASTERIX::jASTERIX jasterix(definition_path, false, false, false);
+    REQUIRE(jasterix.hasCategory(2));
+    auto cat = jasterix.category(2);
+    REQUIRE(cat->hasEdition("1.0"));
+    cat->setCurrentEdition("1.0");
+    cat->setCurrentMapping("");
+
+    // Record 1: FSPEC=0x40 (only item 000), 000=0x01 → 2 bytes, valid.
+    // Record 2: FSPEC=0xD4, item 010 SAC at index 6 (ok), SIC at index 7.
+    //   FixedBytesItemParser: 6+1=7 > 7? No. But SIC: 6+2=8 > 7 → throws.
+    const char data[] = {0x02, 0x00, 0x07, 0x40, 0x01, char(0xd4), 0x00};
+    size_t errors = 0, records = 0;
+
+    decode_malformed(jasterix, data, sizeof(data), errors, records);
+
+    loginf << "bounds test: second record truncated errors=" << errors
+           << " records=" << records << logendl;
+
+    // First record should parse successfully, second should error.
+    REQUIRE(records >= 1);
+    REQUIRE(errors > 0);
+}
+
 // ─── Test 7: Unparsed bytes in data block ───
 // CAT002 FSPEC 0x40 selects only item 000 (1 byte). Record = FSPEC(1) + item(1) = 2 bytes.
 // Block content should be 2 bytes → LEN should be 5. But we set LEN=7, claiming 4 bytes

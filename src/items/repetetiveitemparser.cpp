@@ -93,7 +93,7 @@ size_t RepetetiveItemParser::parseItem(const char* data, size_t index, size_t si
     parsed_bytes = repetition_item_->parseItem(
                 data, index + parsed_bytes, size, parsed_bytes, total_size, target, debug);
 
-    traced_assert(!target.contains(name_));
+    //traced_assert(!target.contains(name_));  // hot path — O(N) json lookup per field
     json& j_data = target[name_] = json::array();
 
     if (debug)

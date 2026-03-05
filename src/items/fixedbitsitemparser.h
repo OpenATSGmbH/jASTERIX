@@ -24,6 +24,8 @@ namespace jASTERIX
 class FixedBitsItemParser : public ItemParserBase
 {
   public:
+    enum class DataType { Uint, Int, Digits, IcaoCharacters, AsciiCharacters };
+
     FixedBitsItemParser(const nlohmann::json& item_definition, const std::string& long_name_prefix,
                         unsigned int byte_length);
     virtual ~FixedBitsItemParser() {}
@@ -40,6 +42,7 @@ class FixedBitsItemParser : public ItemParserBase
     unsigned int start_bit_{0};
     unsigned int bit_length_{0};
     std::string data_type_{"uint"};
+    DataType data_type_enum_{DataType::Uint};
     //unsigned int negative_bit_pos_{0};
     bool has_lsb_{false};
     double lsb_{1.0};

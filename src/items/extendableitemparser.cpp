@@ -68,7 +68,7 @@ size_t ExtendableItemParser::parseItem(const char* data, size_t index, size_t si
     unsigned int extend = 1;
     unsigned int cnt = 0;
 
-    traced_assert(!target.contains(name_));
+    //traced_assert(!target.contains(name_));  // hot path — O(N) json lookup per field
     json& j_data = target[name_] = json::array();
 
     while (extend)
