@@ -30,8 +30,8 @@ std::unique_ptr<HashChecker> hash_checker;
 using namespace nlohmann;
 // using namespace Utils;
 
-void check_callback(std::unique_ptr<nlohmann::json> data_chunk, size_t num_frames,
-                    size_t num_records, size_t num_errors)
+void check_callback(std::unique_ptr<nlohmann::json> data_chunk, size_t total_num_bytes,
+                    size_t num_frames, size_t num_records, size_t num_errors)
 {
     traced_assert(hash_checker);
     hash_checker->process(std::move(data_chunk));

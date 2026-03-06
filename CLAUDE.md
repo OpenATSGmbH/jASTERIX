@@ -32,7 +32,7 @@ make -C build -j$(nproc)
 
 Build output goes to `build/bin/` (executables) and `build/lib/` (libraries).
 
-**C++ standard**: The project uses **C++17** (`-std=c++17`). The AppImage is built inside a Debian 10 Docker container using GCC 8.3. C++17 features such as structured bindings, `std::optional`, `std::variant`, `if constexpr`, `std::string_view`, and `std::any` are available and may be used freely.
+**C++ standard**: The project uses **C++17** (`-std=c++17`). The AppImage is built inside a Debian 10 Docker container using GCC 8.3. C++17 features such as structured bindings (`auto [x, y] = ...`), `std::optional`, `std::variant`, `if constexpr`, `std::string_view`, and `std::any` are available and may be used freely.
 
 **Compiler flags**:
 - Docker: `-UNDEBUG -Wall -std=c++17 -fext-numeric-literals`
@@ -146,7 +146,22 @@ All source files must include the GPL-3.0 header referencing jASTERIX (see any e
 - **nlohmann/json** — JSON serialization (header-only in `lib/`)
 - **Catch2** — unit testing (header-only in `lib/`)
 
-## ASTERIX binary format (EUROCONTROL-SPEC-0149 Part 1, Ed 3.1)
+## Domain concepts
+
+- **Category**: Classification number (001–252). E.g. CAT048 = monoradar, CAT062 = tracker, CAT021 = ADS-B.
+- **Edition**: Version of a category's item definitions (e.g. CAT048 v1.15 vs v1.23). Defines the UAP and all item structures.
+- **UAP (User Application Profile)**: Ordered table mapping FRN positions to data item numbers. Each category/edition has exactly one UAP (some have conditional UAPs selected by a data item value).
+- **FSPEC (Field Specification)**: Variable-length bitmask at the start of each Data Record. Each bit selects a UAP entry as present/absent. FX bit (LSB) chains additional FSPEC octets. No fixed record layout — output shape varies per record.
+- **REF (Reserved Expansion Field)**: Extension mechanism for categories with blocking. Has its own length indicator + FX-extendable presence bits.
+- **SPF (Special Purpose Field)**: Vendor-specific escape field with explicit length. Contents defined by the sending system.
+- **Mapping**: Transforms decoded data between formats (e.g. edition-specific field names to normalized names).
+- **Framing**: Network encapsulation around ASTERIX data blocks (IOSS, IOSS with sequence numbers, RFF, or raw/netto for no framing).
+- **Data Block**: ASTERIX container: 1-byte CAT + 2-byte LEN + one or more Data Records.
+- **SAC/SIC**: System Area Code / System Identification Code — identifies the data source sensor.
+- **FRN (Field Reference Number)**: Position of a data item in the UAP, corresponding to FSPEC bit position.
+- **ASTERIX**: EUROCONTROL standard binary format for surveillance data exchange (EUROCONTROL-SPEC-0149 Part 1, Edition 3.1).
+
+## ASTERIX binary format
 
 Understanding the binary format is essential for working on this codebase. The spec reference is `eurocontrol-specification-asterix-part1-ed-3-1.pdf` in the repo root.
 
@@ -161,12 +176,6 @@ Understanding the binary format is essential for working on this codebase. The s
                       └─ Element   Individual bit fields within a subitem
 ```
 
-### FSPEC — why every record is structurally different
-
-Each Data Record begins with a **Field Specification (FSPEC)** — a variable-length bitmask. Each bit corresponds to an entry in the UAP (User Application Profile), which is an ordered table mapping Field Reference Numbers (FRNs) to Data Items. A bit set to 1 means that Data Item is **present** in this record; 0 means **absent**. The LSB of each FSPEC octet is the FX (Field Extension) bit: FX=1 means another FSPEC octet follows, FX=0 means the FSPEC ends here.
-
-**Key consequence for the decoder**: There is no fixed record layout. Two consecutive records in the same data block (same category) can have completely different sets of data items present. The set of JSON keys emitted per record is determined entirely at parse time by the FSPEC bits in the binary data. Pre-built JSON templates or skeletons per category are not possible — the output shape varies per record.
-
 ### Data item types (§5.2.5)
 
 - **Fixed length**: One subitem of N octets (known at definition time).
@@ -174,21 +183,6 @@ Each Data Record begins with a **Field Specification (FSPEC)** — a variable-le
 - **Explicit length**: First octet is a length indicator (LEN), followed by LEN-1 octets of data. Length unknown until first byte is read.
 - **Repetitive**: REP octet gives count N, followed by N identical subitems. Count unknown until REP byte is read.
 - **Compound**: Primary subitem is an FX-extendable presence bitmask (like a mini-FSPEC), selecting which data subitems follow. Each sub-item can itself be fixed, extended, explicit, or repetitive. Structure varies per record.
-
-### Other key concepts
-
-- **Category**: Classification number (001–252). E.g. CAT048 = monoradar, CAT062 = tracker, CAT021 = ADS-B.
-- **Edition**: Version of a category's item definitions (e.g. CAT048 v1.15 vs v1.23). Defines the UAP and all item structures.
-- **UAP (User Application Profile)**: Ordered table mapping FRN positions to data item numbers. Each category/edition has exactly one UAP (some have conditional UAPs selected by a data item value).
-- **REF (Reserved Expansion Field)**: Extension mechanism for categories with blocking (pre-Ed 2.2). Has its own length indicator + items indicator (FX-extendable presence bits).
-- **SPF (Special Purpose Field)**: Vendor-specific escape field with explicit length. Contents defined by the sending system.
-- **Mapping**: Transforms decoded data between formats (e.g. edition-specific field names to normalized names).
-- **Framing**: Network encapsulation around ASTERIX data blocks (IOSS, IOSS with sequence numbers, RFF, or raw/netto for no framing).
-- **Data Block**: ASTERIX container: 1-byte CAT + 2-byte LEN + one or more Data Records (for categories using blocking).
-- **SAC/SIC**: System Area Code / System Identification Code — identifies the data source sensor.
-- **Mode 3/A**: SSR transponder code (4-digit octal, 0000–7777).
-- **Mode C**: SSR altitude (flight level in 25ft increments).
-- **FRN (Field Reference Number)**: Position of a data item in the UAP, corresponding to FSPEC bit position.
 
 ## Supported ASTERIX categories
 
@@ -211,29 +205,56 @@ Each Data Record begins with a **Field Specification (FSPEC)** — a variable-le
 | 247 | 1.2                |      |            | Version number exchange  |
 | 252 | 7.0                |      |            | ARTAS track updates      |
 
-## CLI usage
+## JSON output formats
 
-```
-jasterix_client --definition_path definitions/ --filename <file> [options]
+jASTERIX supports two output formats: **structured** (default) and **flat** (`--flat`).
 
-Key options:
-  --framing <type>         Frame format: ioss, ioss_seq, rff (default: raw/netto)
-  --frame_limit <n>        Max frames to process (-1 = unlimited)
-  --frame_chunk_size <n>   Frames per chunk (default: 1000)
-  --data_block_limit <n>   Max data blocks without framing (default: 10000)
-  --print                  Print JSON output to stdout
-  --print_indent <n>       JSON indentation (-1 = compact)
-  --write_type <type>      Output format: text, zip
-  --write_filename <path>  Output file path
-  --only_cats <list>       Restrict categories (e.g. 20,21,48)
-  --single_thread          Disable TBB multi-threading
-  --debug                  Enable debug output
-  --log_perf               Print performance statistics after processing
-  --add_artas_md5          Compute ARTAS MD5 hashes
-  --check_artas_md5 <cats> Compute and verify MD5 hashes for specified categories
-  --add_record_data        Include original record hex data in output
-  --print_cat_info         Print category/edition information
+### Structured (default)
+
+Hierarchical JSON mirroring the ASTERIX data block / record structure. Each record is a nested object with data item numbers as keys:
+
+```json
+{
+    "data_blocks": [
+        {
+            "category": 48,
+            "content": {
+                "index": 3,
+                "length": 62,
+                "records": [
+                    {
+                        "010": { "SAC": 0, "SIC": 1 },
+                        "040": { "RHO": 73.92, "THETA": 89.67 },
+                        "070": { "G": 0, "L": 1, "Mode-3/A reply": 470, "V": 0 },
+                        "090": { "Flight Level": 370.0, "G": 0, "V": 0 },
+                        "140": { "Time-of-Day": 33499.84 },
+                        "220": { "AIRCRAFT ADDRESS": 11226301 },
+                        "240": { "Aircraft Identification": "RYR5XW  " }
+                    }
+                ]
+            }
+        }
+    ]
+}
 ```
+
+### Flat (`--flat`)
+
+Columnar layout keyed by category number. Each leaf field becomes a top-level array, with one entry per record (indexed by record order). All arrays for a category have the same length:
+
+```json
+{
+    "48": {
+        "010.SAC": [0, 0, 5],
+        "010.SIC": [1, 1, 2],
+        "040.RHO": [73.92, null, 55.10],
+        "040.THETA": [89.67, null, 120.33],
+        "140.Time-of-Day": [33499.84, 33500.12, 33500.50]
+    }
+}
+```
+
+Fields absent from a record (not selected by FSPEC) are `null` in the corresponding array position.
 
 ## ASTERIX definition format
 
@@ -282,3 +303,27 @@ jasterix.stopDecoding();
 ```
 
 Callbacks receive `std::unique_ptr<nlohmann::json>` containing decoded frames/data blocks.
+
+## CLI usage
+
+```
+jasterix_client --definition_path definitions/ --filename <file> [options]
+
+Key options:
+  --framing <type>         Frame format: ioss, ioss_seq, rff (default: raw/netto)
+  --frame_limit <n>        Max frames to process (-1 = unlimited)
+  --frame_chunk_size <n>   Frames per chunk (default: 1000)
+  --data_block_limit <n>   Max data blocks without framing (default: 10000)
+  --print                  Print JSON output to stdout
+  --print_indent <n>       JSON indentation (-1 = compact)
+  --write_type <type>      Output format: text, zip
+  --write_filename <path>  Output file path
+  --only_cats <list>       Restrict categories (e.g. 20,21,48)
+  --single_thread          Disable TBB multi-threading
+  --debug                  Enable debug output
+  --log_perf               Print performance statistics after processing
+  --add_artas_md5          Compute ARTAS MD5 hashes
+  --check_artas_md5 <cats> Compute and verify MD5 hashes for specified categories
+  --add_record_data        Include original record hex data in output
+  --print_cat_info         Print category/edition information
+```

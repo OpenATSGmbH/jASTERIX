@@ -87,22 +87,31 @@ class jASTERIX
     std::string analyzeDataCSV(const char* data, unsigned int total_size,
                                                 unsigned int record_limit=0);
 
+    // Callback signature for decodeFile/decodeData:
+    //   data          — decoded JSON chunk (frames or data_blocks, or flat columnar data)
+    //   total_num_bytes — cumulative number of bytes decoded so far (for progress tracking)
+    //   num_frames      — number of frames in this chunk (0 when decoding without framing)
+    //   num_records     — number of records decoded in this chunk
+    //   num_errors      — number of decode errors in this chunk
+    using decode_callback_t = std::function<void(std::unique_ptr<nlohmann::json> data,
+                                                 size_t total_num_bytes,
+                                                 size_t num_frames,
+                                                 size_t num_records,
+                                                 size_t num_errors)>;
+
     // do_flat=false: callback receives {"frames":[...]} or {"data_blocks":[...]} with nested per-record objects.
     // do_flat=true:  callback receives {"<cat>": {"<item>.<field>": [val_per_record, ...], ...}, ...} per chunk.
     //                Forces single-thread mode. Column arrays are moved out each chunk; fresh arrays created for next.
     void decodeFile(const std::string& filename, const std::string& framing_str,
-                    std::function<void(std::unique_ptr<nlohmann::json>, size_t, size_t, size_t)>
-                        data_callback = nullptr,
+                    decode_callback_t data_callback = nullptr,
                     bool do_flat = false);
     void decodeFile(const std::string& filename,
-                    std::function<void(std::unique_ptr<nlohmann::json>, size_t, size_t, size_t)>
-                        data_callback = nullptr,
+                    decode_callback_t data_callback = nullptr,
                     bool do_flat = false);
     void stopDecoding();
 
     void decodeData(const char* data, unsigned int total_size,
-                    std::function<void(std::unique_ptr<nlohmann::json>, size_t, size_t, size_t)>
-                    data_callback = nullptr,
+                    decode_callback_t data_callback = nullptr,
                     bool abortable = true,
                     bool do_flat = false);
 
@@ -120,8 +129,9 @@ class jASTERIX
     size_t numRecords() const;
     size_t numErrors() const;
 
-    void addDataBlockChunk(std::unique_ptr<nlohmann::json> data_block_chunk, bool error, bool done);
-    void addDataChunk(std::unique_ptr<nlohmann::json> data_chunk, bool done);
+    void addDataBlockChunk(std::unique_ptr<nlohmann::json> data_block_chunk, size_t bytes_read,
+                           bool error, bool done);
+    void addDataChunk(std::unique_ptr<nlohmann::json> data_chunk, size_t bytes_read, bool done);
 
     const std::vector<std::string>& framings() { return framings_; }
 
@@ -150,12 +160,12 @@ class jASTERIX
 
     boost::iostreams::mapped_file_source file_;
 
-    std::deque<std::unique_ptr<nlohmann::json>> data_block_chunks_;
+    std::deque<std::pair<std::unique_ptr<nlohmann::json>, size_t>> data_block_chunks_;  // {chunk, bytes_read}
     std::mutex data_block_chunks_mutex_;
     std::condition_variable data_block_chunks_cv_;
     bool data_block_processing_done_{false};
 
-    std::deque<std::unique_ptr<nlohmann::json>> data_chunks_;
+    std::deque<std::pair<std::unique_ptr<nlohmann::json>, size_t>> data_chunks_;  // {chunk, bytes_read}
     std::mutex data_chunks_mutex_;
     std::condition_variable data_chunks_cv_;
     bool data_processing_done_{false};

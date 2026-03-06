@@ -73,7 +73,7 @@ void roundtrip_test(const string& filename, unsigned int category,
     unique_ptr<json> decoded_json;
 
     jasterix.decodeFile(filepath,
-                        [&](unique_ptr<json> json_data, size_t num_frames,
+                        [&](unique_ptr<json> json_data, size_t total_num_bytes, size_t num_frames,
                             size_t num_records, size_t num_errors)
                         {
                             REQUIRE(num_errors == 0);

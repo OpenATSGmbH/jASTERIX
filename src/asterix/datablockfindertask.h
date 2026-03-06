@@ -68,7 +68,8 @@ class DataBlockFinderTask // : public tbb::task
 //                    loginf << "DataBlockFinderTask: ex pb " << parsed_bytes << " num db "
 //                           << num_data_blocks << " done " << done_ << logendl;
 
-                    jasterix_.addDataBlockChunk(std::move(jdata), error_, done_);
+                    jasterix_.addDataBlockChunk(std::move(jdata), index_ + parsed_bytes,
+                                               error_, done_);
                 }
                 catch (std::exception& e)
                 {

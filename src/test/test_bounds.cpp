@@ -35,8 +35,8 @@ void decode_malformed(jASTERIX::jASTERIX& jasterix,
     out_records = 0;
 
     jasterix.decodeData(data, size,
-                        [&](unique_ptr<json> /*json_data*/, size_t /*num_frames*/,
-                            size_t num_records, size_t num_errors)
+                        [&](unique_ptr<json> /*json_data*/, size_t /*total_num_bytes*/,
+                            size_t /*num_frames*/, size_t num_records, size_t num_errors)
                         {
                             out_records = num_records;
                             out_errors = num_errors;

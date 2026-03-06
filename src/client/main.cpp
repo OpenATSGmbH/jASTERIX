@@ -52,8 +52,8 @@ extern std::unique_ptr<jASTERIX::JSONWriter> json_writer;
 
 std::unique_ptr<jASTERIX::JSONWriter> json_writer;
 
-void write_callback(std::unique_ptr<nlohmann::json> data_chunk, size_t num_frames,
-                    size_t num_records, size_t num_errors)
+void write_callback(std::unique_ptr<nlohmann::json> data_chunk, size_t total_num_bytes,
+                    size_t num_frames, size_t num_records, size_t num_errors)
 {
     //    loginf << "jASTERIX: write_callback " << num_frames << " frames, " << num_records << "
     //    records, "
@@ -63,8 +63,8 @@ void write_callback(std::unique_ptr<nlohmann::json> data_chunk, size_t num_frame
     json_writer->write(std::move(data_chunk));
 }
 
-void empty_callback(std::unique_ptr<nlohmann::json> data_chunk, size_t num_frames,
-                    size_t num_records, size_t num_errors)
+void empty_callback(std::unique_ptr<nlohmann::json> data_chunk, size_t total_num_bytes,
+                    size_t num_frames, size_t num_records, size_t num_errors)
 {
     traced_assert(data_chunk);
 }

@@ -44,7 +44,7 @@ unsigned int sum_num_records{0};
 std::chrono::time_point<std::chrono::steady_clock> start_time;
 std::chrono::time_point<std::chrono::steady_clock> current_time;
 
-void test_performance_callback(std::unique_ptr<nlohmann::json> json_data, size_t num_frames,
+void test_performance_callback(std::unique_ptr<nlohmann::json> json_data, size_t total_num_bytes, size_t num_frames,
                                size_t num_records, size_t num_errors)
 {
     // float free_ram = Utils::System::getFreeRAMinGB();

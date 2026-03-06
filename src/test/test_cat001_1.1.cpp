@@ -25,7 +25,7 @@
 using namespace std;
 using namespace nlohmann;
 
-void test_cat001_callback(std::unique_ptr<nlohmann::json> json_data, size_t num_frames,
+void test_cat001_callback(std::unique_ptr<nlohmann::json> json_data, size_t total_num_bytes, size_t num_frames,
                           size_t num_records, size_t num_errors)
 {
     loginf << "cat001 test: callback" << logendl;

@@ -41,7 +41,7 @@ std::string filename;
 unsigned int sum_num_frames{0};
 unsigned int sum_num_records{0};
 
-void test_limit_callback(std::unique_ptr<nlohmann::json> json_data, size_t num_frames,
+void test_limit_callback(std::unique_ptr<nlohmann::json> json_data, size_t total_num_bytes, size_t num_frames,
                          size_t num_records, size_t num_errors)
 {
     sum_num_frames += num_frames;

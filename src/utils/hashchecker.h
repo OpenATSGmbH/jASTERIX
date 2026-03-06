@@ -56,7 +56,7 @@ extern std::string check_artas_md5_hash;
 extern std::vector<int> check_artas_md5_categories;
 extern std::unique_ptr<HashChecker> hash_checker;
 
-extern void check_callback(std::unique_ptr<nlohmann::json> data_chunk, size_t num_frames,
-                           size_t num_records, size_t num_errors);
+extern void check_callback(std::unique_ptr<nlohmann::json> data_chunk, size_t total_num_bytes,
+                           size_t num_frames, size_t num_records, size_t num_errors);
 
 

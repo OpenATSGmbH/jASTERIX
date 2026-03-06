@@ -269,7 +269,7 @@ std::unique_ptr<nlohmann::json> jASTERIX::analyzeFile(
             //loginf << "jASTERIX: analyze frame chunks " << data_chunks_.size() << logendl;
             //  mostly 2. mostly.
 
-            data_chunk = std::move(data_chunks_.front());
+            data_chunk = std::move(data_chunks_.front().first);
             data_chunks_.pop_front();
         }
         data_chunks_cv_.notify_one();  // wake producer from backpressure
@@ -490,7 +490,7 @@ std::unique_ptr<nlohmann::json> jASTERIX::analyzeData(const char* data, unsigned
             if (stop_decoding_ || data_block_chunks_.empty())
                 break;
 
-            data_block_chunk = std::move(data_block_chunks_.front());
+            data_block_chunk = std::move(data_block_chunks_.front().first);
             data_block_chunks_.pop_front();
         }
         data_block_chunks_cv_.notify_one();  // wake producer from backpressure
@@ -657,7 +657,7 @@ std::unique_ptr<nlohmann::json> jASTERIX::moveFlatData()
 
 void jASTERIX::decodeFile(
     const std::string& filename, const std::string& framing_str,
-    std::function<void(std::unique_ptr<nlohmann::json>, size_t, size_t, size_t)> data_callback,
+    decode_callback_t data_callback,
     bool do_flat)
 {
     size_t file_size = openFile(filename);
@@ -713,6 +713,7 @@ void jASTERIX::decodeFile(
     std::unique_ptr<nlohmann::json> data_chunk;
 
     size_t num_callback_frames;
+    size_t chunk_bytes_read{0};
     std::pair<size_t, size_t> dec_ret{0, 0};
 
             //loginf << "jASTERIX: decodeFile: processing";
@@ -732,7 +733,8 @@ void jASTERIX::decodeFile(
             if (stop_decoding_ || data_chunks_.empty())
                 break;
 
-            data_chunk = std::move(data_chunks_.front());
+            chunk_bytes_read = data_chunks_.front().second;
+            data_chunk = std::move(data_chunks_.front().first);
             data_chunks_.pop_front();
         }
         data_chunks_cv_.notify_one();  // wake producer from backpressure
@@ -761,7 +763,7 @@ void jASTERIX::decodeFile(
                     std::cout << flat_chunk->dump(print_dump_indent) << std::endl;
 
                 if (data_callback)
-                    data_callback(std::move(flat_chunk), num_callback_frames, dec_ret.first, dec_ret.second);
+                    data_callback(std::move(flat_chunk), chunk_bytes_read, num_callback_frames, dec_ret.first, dec_ret.second);
 
                 data_chunk = nullptr;
             }
@@ -771,7 +773,7 @@ void jASTERIX::decodeFile(
                     std::cout << data_chunk->dump(print_dump_indent) << std::endl;
 
                 if (data_callback)
-                    data_callback(std::move(data_chunk), num_callback_frames, dec_ret.first, dec_ret.second);
+                    data_callback(std::move(data_chunk), chunk_bytes_read, num_callback_frames, dec_ret.first, dec_ret.second);
                 else
                     data_chunk = nullptr;
             }
@@ -805,7 +807,7 @@ void jASTERIX::decodeFile(
 
 void jASTERIX::decodeFile(
     const std::string& filename,
-    std::function<void(std::unique_ptr<nlohmann::json>, size_t, size_t, size_t)> data_callback,
+    decode_callback_t data_callback,
     bool do_flat)
 {
     size_t file_size = openFile(filename);
@@ -844,6 +846,7 @@ void jASTERIX::decodeFile(
 
     std::unique_ptr<nlohmann::json> data_block_chunk;
 
+    size_t chunk_bytes_read{0};
     std::pair<size_t, size_t> dec_ret{0, 0};
 
     stop_decoding_ = false;
@@ -871,7 +874,8 @@ void jASTERIX::decodeFile(
             if (stop_decoding_ || data_block_chunks_.empty())
                 break;
 
-            data_block_chunk = std::move(data_block_chunks_.front());
+            chunk_bytes_read = data_block_chunks_.front().second;
+            data_block_chunk = std::move(data_block_chunks_.front().first);
             data_block_chunks_.pop_front();
         }
         data_block_chunks_cv_.notify_one();  // wake producer from backpressure
@@ -900,7 +904,7 @@ void jASTERIX::decodeFile(
                     std::cout << flat_chunk->dump(print_dump_indent) << std::endl;
 
                 if (data_callback)
-                    data_callback(std::move(flat_chunk), 0, dec_ret.first, dec_ret.second);
+                    data_callback(std::move(flat_chunk), chunk_bytes_read, 0, dec_ret.first, dec_ret.second);
 
                 data_block_chunk = nullptr;
             }
@@ -910,7 +914,7 @@ void jASTERIX::decodeFile(
                     std::cout << data_block_chunk->dump(print_dump_indent) << std::endl;
 
                 if (data_callback)
-                    data_callback(std::move(data_block_chunk), 0, dec_ret.first, dec_ret.second);
+                    data_callback(std::move(data_block_chunk), chunk_bytes_read, 0, dec_ret.first, dec_ret.second);
                 else
                     data_block_chunk = nullptr;
             }
@@ -943,7 +947,7 @@ void jASTERIX::stopDecoding()
 
 void jASTERIX::decodeData(const char* data,
                           unsigned int total_size,
-                          std::function<void(std::unique_ptr<nlohmann::json>, size_t, size_t, size_t)> data_callback,
+                          decode_callback_t data_callback,
                           bool abortable,
                           bool do_flat)
 {
@@ -976,6 +980,7 @@ void jASTERIX::decodeData(const char* data,
 
     std::unique_ptr<nlohmann::json> data_block_chunk;
 
+    size_t chunk_bytes_read{0};
     std::pair<size_t, size_t> dec_ret{0, 0};
 
     stop_decoding_ = false;
@@ -998,7 +1003,8 @@ void jASTERIX::decodeData(const char* data,
             if ((abortable && stop_decoding_) || data_block_chunks_.empty())
                 break;
 
-            data_block_chunk = std::move(data_block_chunks_.front());
+            chunk_bytes_read = data_block_chunks_.front().second;
+            data_block_chunk = std::move(data_block_chunks_.front().first);
             data_block_chunks_.pop_front();
         }
         data_block_chunks_cv_.notify_one();  // wake producer from backpressure
@@ -1027,7 +1033,7 @@ void jASTERIX::decodeData(const char* data,
                     std::cout << flat_chunk->dump(print_dump_indent) << std::endl;
 
                 if (data_callback)
-                    data_callback(std::move(flat_chunk), 0, dec_ret.first, dec_ret.second);
+                    data_callback(std::move(flat_chunk), chunk_bytes_read, 0, dec_ret.first, dec_ret.second);
 
                 data_block_chunk = nullptr;
             }
@@ -1037,7 +1043,7 @@ void jASTERIX::decodeData(const char* data,
                     std::cout << data_block_chunk->dump(print_dump_indent) << std::endl;
 
                 if (data_callback)
-                    data_callback(std::move(data_block_chunk), 0, dec_ret.first, dec_ret.second);
+                    data_callback(std::move(data_block_chunk), chunk_bytes_read, 0, dec_ret.first, dec_ret.second);
                 else
                     data_block_chunk = nullptr;
             }
@@ -1063,7 +1069,8 @@ size_t jASTERIX::numFrames() const { return num_frames_; }
 
 size_t jASTERIX::numRecords() const { return num_records_; }
 
-void jASTERIX::addDataBlockChunk(std::unique_ptr<nlohmann::json> data_block_chunk, bool error, bool done)
+void jASTERIX::addDataBlockChunk(std::unique_ptr<nlohmann::json> data_block_chunk, size_t bytes_read,
+                                 bool error, bool done)
 {
     if (debug_)
     {
@@ -1083,7 +1090,7 @@ void jASTERIX::addDataBlockChunk(std::unique_ptr<nlohmann::json> data_block_chun
 
     {
         std::lock_guard<std::mutex> lock(data_block_chunks_mutex_);
-        data_block_chunks_.push_back(std::move(data_block_chunk));
+        data_block_chunks_.push_back({std::move(data_block_chunk), bytes_read});
         data_block_processing_done_ = done;
     }
     data_block_chunks_cv_.notify_one();  // wake consumer
@@ -1098,7 +1105,7 @@ void jASTERIX::addDataBlockChunk(std::unique_ptr<nlohmann::json> data_block_chun
     }
 }
 
-void jASTERIX::addDataChunk(std::unique_ptr<nlohmann::json> data_chunk, bool done)
+void jASTERIX::addDataChunk(std::unique_ptr<nlohmann::json> data_chunk, size_t bytes_read, bool done)
 {
     //loginf << "jASTERIX: addDataChunk: done " << done;
 
@@ -1115,7 +1122,7 @@ void jASTERIX::addDataChunk(std::unique_ptr<nlohmann::json> data_chunk, bool don
 
     {
         std::lock_guard<std::mutex> lock(data_chunks_mutex_);
-        data_chunks_.push_back(std::move(data_chunk));
+        data_chunks_.push_back({std::move(data_chunk), bytes_read});
         data_processing_done_ = done;
     }
     data_chunks_cv_.notify_one();  // wake consumer

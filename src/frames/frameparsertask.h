@@ -82,7 +82,7 @@ public:
                     if (!data_chunk->at("frames").is_array())
                         throw std::runtime_error("jASTERIX scoped frames information is not array");
 
-                    jasterix_.addDataChunk(std::move(data_chunk), done_);
+                    jasterix_.addDataChunk(std::move(data_chunk), index_, done_);
                     traced_assert(data_chunk == nullptr);
 
                 }
