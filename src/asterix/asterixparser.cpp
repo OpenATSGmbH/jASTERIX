@@ -234,6 +234,11 @@ void ASTERIXParser::setFlatRecordIndices(std::map<unsigned int, size_t>* indices
     flat_record_indices_ = indices;
 }
 
+void ASTERIXParser::setFlatHashColumns(std::map<unsigned int, json*>* columns)
+{
+    flat_hash_columns_ = columns;
+}
+
 std::pair<size_t, size_t> ASTERIXParser::decodeDataBlocks(const char* data, size_t total_size,
                                                           nlohmann::json& data_blocks, bool debug)
 {
@@ -390,6 +395,20 @@ std::pair<size_t, size_t> ASTERIXParser::decodeDataBlock(const char* data, size_
                                 data, data_block_index + data_block_parsed_bytes,
                                 data_block_length - data_block_parsed_bytes,
                                 data_block_parsed_bytes, total_size, record_scratch, debug);
+
+
+#if USE_OPENSSL
+                    if (add_artas_md5_hash)
+                    {
+                        calculateARTASMD5Hash(&data[data_block_index + data_block_parsed_bytes],
+                                              record_parsed_bytes, record_scratch);
+
+                        if (flat_hash_columns_ && flat_hash_columns_->count(cat))
+                            flat_hash_columns_->at(cat)->push_back(record_scratch.at("artas_md5"));
+                    }
+                    else if (flat_hash_columns_ && flat_hash_columns_->count(cat))
+                        flat_hash_columns_->at(cat)->push_back(nullptr);
+#endif
 
                     data_block_parsed_bytes += record_parsed_bytes;
 

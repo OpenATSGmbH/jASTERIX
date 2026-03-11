@@ -630,6 +630,7 @@ std::string jASTERIX::analyzeDataCSV(const char* data, unsigned int total_size,
 void jASTERIX::setupFlatColumns()
 {
     flat_data_.clear();
+    flat_hash_columns_.clear();
 
     for (auto& [cat, cat_def] : category_definitions_)
     {
@@ -640,6 +641,14 @@ void jASTERIX::setupFlatColumns()
                 flat_data_[cat][name] = nlohmann::json::array();
                 leaf->setColumnTarget(&flat_data_[cat][name], &flat_record_indices_[cat]);
             });
+
+#if USE_OPENSSL
+            if (add_artas_md5_hash)
+            {
+                flat_data_[cat]["artas_md5"] = nlohmann::json::array();
+                flat_hash_columns_[cat] = &flat_data_[cat]["artas_md5"];
+            }
+#endif
         }
     }
 }
@@ -674,6 +683,7 @@ void jASTERIX::decodeFile(
         flat_record_indices_.clear();
         setupFlatColumns();
         asterix_parser.setFlatRecordIndices(&flat_record_indices_);
+        asterix_parser.setFlatHashColumns(&flat_hash_columns_);
     }
 
             // create frame parser
@@ -824,6 +834,7 @@ void jASTERIX::decodeFile(
         flat_record_indices_.clear();
         setupFlatColumns();
         asterix_parser.setFlatRecordIndices(&flat_record_indices_);
+        asterix_parser.setFlatHashColumns(&flat_hash_columns_);
     }
 
     if (debug_)
@@ -958,9 +969,13 @@ void jASTERIX::decodeData(const char* data,
         flat_record_indices_.clear();
         setupFlatColumns();
         asterix_parser_instance.setFlatRecordIndices(&flat_record_indices_);
+        asterix_parser_instance.setFlatHashColumns(&flat_hash_columns_);
     }
     else
+    {
         asterix_parser_instance.setFlatRecordIndices(nullptr);
+        asterix_parser_instance.setFlatHashColumns(nullptr);
+    }
 
     data_block_processing_done_ = false;
 

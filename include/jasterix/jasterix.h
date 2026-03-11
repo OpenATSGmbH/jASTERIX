@@ -179,6 +179,7 @@ class jASTERIX
     // Flat/columnar mode state
     std::map<unsigned int, nlohmann::json> flat_data_;       // cat -> {leaf_name -> json::array}
     std::map<unsigned int, size_t> flat_record_indices_;     // cat -> current record index
+    std::map<unsigned int, nlohmann::json*> flat_hash_columns_; // cat -> pointer to artas_md5 array
 
     // sac/sic -> cat -> count
     //std::map<std::string, std::map<std::string, unsigned int>> sensor_counts_;
