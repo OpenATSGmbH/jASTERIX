@@ -239,6 +239,11 @@ void ASTERIXParser::setFlatHashColumns(std::map<unsigned int, json*>* columns)
     flat_hash_columns_ = columns;
 }
 
+void ASTERIXParser::setFlatData(std::map<unsigned int, json>* data)
+{
+    flat_data_ = data;
+}
+
 std::pair<size_t, size_t> ASTERIXParser::decodeDataBlocks(const char* data, size_t total_size,
                                                           nlohmann::json& data_blocks, bool debug)
 {
@@ -378,6 +383,11 @@ std::pair<size_t, size_t> ASTERIXParser::decodeDataBlock(const char* data, size_
 
                 json record_scratch;
 
+                // CAT001 allows SAC/SIC (item 010) only in the first record of a data block
+                // (see EUROCONTROL-SPEC-0149-2a, §5.3.2.1). Track last-seen values so we
+                // can inject them into subsequent records that omit item 010.
+                json cat001_sac_sic;
+
                 while (data_block_parsed_bytes < data_block_length)
                 {
                     if (data_block_index + data_block_parsed_bytes >= total_size)
@@ -396,6 +406,29 @@ std::pair<size_t, size_t> ASTERIXParser::decodeDataBlock(const char* data, size_
                                 data_block_length - data_block_parsed_bytes,
                                 data_block_parsed_bytes, total_size, record_scratch, debug);
 
+                    // CAT001: propagate SAC/SIC from first record to subsequent records
+                    // that omit item 010 within the same data block.
+                    // In flat/columnar mode the ItemParser skips creating the "010"
+                    // sub-object — leaf values (SAC, SIC) are written directly into
+                    // record_scratch, so we check for "SAC" instead of "010".
+                    if (cat == 1)
+                    {
+                        if (record_scratch.contains("SAC"))
+                        {
+                            cat001_sac_sic["SAC"] = record_scratch.at("SAC");
+                            cat001_sac_sic["SIC"] = record_scratch.at("SIC");
+                        }
+                        else if (!cat001_sac_sic.is_null() && flat_data_ && flat_data_->count(cat))
+                        {
+                            auto& cat_cols = flat_data_->at(cat);
+                            size_t ri = flat_record_indices_->at(cat);
+
+                            if (cat001_sac_sic.contains("SAC") && cat_cols.contains("010.SAC"))
+                                cat_cols.at("010.SAC")[ri] = cat001_sac_sic.at("SAC");
+                            if (cat001_sac_sic.contains("SIC") && cat_cols.contains("010.SIC"))
+                                cat_cols.at("010.SIC")[ri] = cat001_sac_sic.at("SIC");
+                        }
+                    }
 
 #if USE_OPENSSL
                     if (add_artas_md5_hash)

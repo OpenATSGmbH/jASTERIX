@@ -14,6 +14,7 @@ target_sources( test_categories
         "${CMAKE_CURRENT_LIST_DIR}/test_jasterix.h"
     PRIVATE
         "${CMAKE_CURRENT_LIST_DIR}/test_cat001_1.1.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/test_cat001_flat_sacsic.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/test_cat002_1.0.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/test_cat004_1.4.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/test_cat010_0.31.cpp"

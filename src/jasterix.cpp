@@ -684,6 +684,7 @@ void jASTERIX::decodeFile(
         setupFlatColumns();
         asterix_parser.setFlatRecordIndices(&flat_record_indices_);
         asterix_parser.setFlatHashColumns(&flat_hash_columns_);
+        asterix_parser.setFlatData(&flat_data_);
     }
 
             // create frame parser
@@ -835,6 +836,7 @@ void jASTERIX::decodeFile(
         setupFlatColumns();
         asterix_parser.setFlatRecordIndices(&flat_record_indices_);
         asterix_parser.setFlatHashColumns(&flat_hash_columns_);
+        asterix_parser.setFlatData(&flat_data_);
     }
 
     if (debug_)
@@ -975,6 +977,7 @@ void jASTERIX::decodeData(const char* data,
     {
         asterix_parser_instance.setFlatRecordIndices(nullptr);
         asterix_parser_instance.setFlatHashColumns(nullptr);
+        asterix_parser_instance.setFlatData(nullptr);
     }
 
     data_block_processing_done_ = false;

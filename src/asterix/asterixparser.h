@@ -52,6 +52,7 @@ class ASTERIXParser
 
     void setFlatRecordIndices(std::map<unsigned int, size_t>* indices);
     void setFlatHashColumns(std::map<unsigned int, nlohmann::json*>* columns);
+    void setFlatData(std::map<unsigned int, nlohmann::json>* data);
     bool flatMode() const { return flat_record_indices_ != nullptr; }
 
   private:
@@ -62,6 +63,7 @@ class ASTERIXParser
 
     std::map<unsigned int, size_t>* flat_record_indices_{nullptr};
     std::map<unsigned int, nlohmann::json*>* flat_hash_columns_{nullptr};
+    std::map<unsigned int, nlohmann::json>* flat_data_{nullptr};
 
 #if USE_OPENSSL
     void calculateARTASMD5Hash(const char* data, size_t length, nlohmann::json& target);
