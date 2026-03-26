@@ -225,7 +225,7 @@
     "062":{
         "comment":"Category 062 SURVEILLANCE DATA EXCHANGE SDPS Track Messages",
         "default_edition":"1.21",
-        "default_ref_edition":"1.4",
+        "default_ref_edition":"1.2",
         "default_spf_edition":"",
         "default_mapping":"",
         "editions":{
