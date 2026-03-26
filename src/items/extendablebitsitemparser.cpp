@@ -131,7 +131,8 @@ size_t ExtendableBitsItemParser::parseItem(const char* data, size_t index, size_
 
 size_t ExtendableBitsItemParser::parseItemBits(const char* data, size_t index, size_t size,
                                                size_t current_parsed_bytes, size_t total_size,
-                                               std::vector<bool>& out_bits, bool debug)
+                                               std::vector<bool>& out_bits, bool debug,
+                                               const std::vector<std::string>* items_names)
 {
     if (debug)
         loginf << "parsing extendable bits item '" << name_ << "' (to local) index " << index
@@ -181,6 +182,15 @@ size_t ExtendableBitsItemParser::parseItemBits(const char* data, size_t index, s
             }
         }
         ++parsed_bytes;
+
+        // only extend if the last bit of this byte is an FX entry in items_names
+        if (items_names)
+        {
+            size_t fx_index = parsed_bytes * 8 - 1;  // last bit position of current byte
+            if (fx_index >= items_names->size() ||
+                items_names->at(fx_index).substr(0, 2) != "FX")
+                break;
+        }
     }
 
     if (reverse_order_)

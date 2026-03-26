@@ -201,7 +201,8 @@ size_t SpecialPurposeField::parseComplexItem(const char* data, size_t index, siz
     auto* fspec_parser = static_cast<ExtendableBitsItemParser*>(complex_field_specification_.get());
     std::vector<bool> fspec_bits;
     parsed_bytes = fspec_parser->parseItemBits(data, index + parsed_bytes, size,
-                                               parsed_bytes, total_size, fspec_bits, debug);
+                                               parsed_bytes, total_size, fspec_bits, debug,
+                                               &complex_items_names_);
 
     //    if (!has_conditional_uap_ && fspec_bits.size() > uap_names_.size())
     //        throw runtime_error ("SpecialPurposeField item '"+name_+"' has more FSPEC bits than
@@ -285,20 +286,28 @@ size_t SpecialPurposeField::encodeItem(const nlohmann::json& source, char* targe
             uap_cnt++;
         }
 
-        // Pad to full bytes and set FX bits
+        // Pad to full bytes and set FX bits only where items_names has an FX entry
         size_t num_bytes = (fspec_bits.size() + 7) / 8;
         fspec_bits.resize(num_bytes * 8, false);
 
-        size_t last_needed_byte = 0;
-        for (size_t byte_idx = 0; byte_idx < num_bytes; ++byte_idx)
-            for (size_t bit = 0; bit < 7; ++bit)
-                if (fspec_bits[byte_idx * 8 + bit])
-                    last_needed_byte = byte_idx;
+        bool has_fx = false;
+        for (size_t i = 7; i < complex_items_names_.size(); i += 8)
+            if (complex_items_names_.at(i).substr(0, 2) == "FX")
+            { has_fx = true; break; }
 
-        for (size_t byte_idx = 0; byte_idx < last_needed_byte; ++byte_idx)
-            fspec_bits[byte_idx * 8 + 7] = true;
-        fspec_bits[last_needed_byte * 8 + 7] = false;
-        fspec_bits.resize((last_needed_byte + 1) * 8);
+        if (has_fx)
+        {
+            size_t last_needed_byte = 0;
+            for (size_t byte_idx = 0; byte_idx < num_bytes; ++byte_idx)
+                for (size_t bit = 0; bit < 7; ++bit)
+                    if (fspec_bits[byte_idx * 8 + bit])
+                        last_needed_byte = byte_idx;
+
+            for (size_t byte_idx = 0; byte_idx < last_needed_byte; ++byte_idx)
+                fspec_bits[byte_idx * 8 + 7] = true;
+            fspec_bits[last_needed_byte * 8 + 7] = false;
+            fspec_bits.resize((last_needed_byte + 1) * 8);
+        }
 
         auto* fspec_parser = static_cast<ExtendableBitsItemParser*>(
             complex_field_specification_.get());
