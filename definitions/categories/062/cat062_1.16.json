@@ -291,7 +291,7 @@
                             "comment": "0 No Mode 4 interrogation\n1 Friendly target\n2 Unknown target\n3 No reply",
                             "type": "fixed_bits",
                             "start_bit": 5,
-                            "bit_length": 1
+                            "bit_length": 2
                         },
                         {
                             "name": "ME",
