@@ -65,6 +65,11 @@ class ASTERIXParser
     std::map<unsigned int, nlohmann::json*>* flat_hash_columns_{nullptr};
     std::map<unsigned int, nlohmann::json>* flat_data_{nullptr};
 
+    // CAT002 time tracking per data source (key: "SAC/SIC").
+    // Used in flat mode to reconstruct CAT001 truncated time.
+    std::map<std::string, double> cat002_last_tod_;         // full Time of Day
+    std::map<std::string, double> cat002_last_tod_period_;  // floor(tod/512)*512
+
 #if USE_OPENSSL
     void calculateARTASMD5Hash(const char* data, size_t length, nlohmann::json& target);
 #endif

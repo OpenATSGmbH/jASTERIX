@@ -366,6 +366,8 @@ std::pair<size_t, size_t> ASTERIXParser::decodeDataBlock(const char* data, size_
                << binary2hex((const unsigned char*)&data[data_block_index], data_block_length)
                << "'" << logendl;
 
+    constexpr double tod_24h = 86400.0;
+
     // try to decode
     if (records_.count(cat) != 0)
     {
@@ -428,6 +430,103 @@ std::pair<size_t, size_t> ASTERIXParser::decodeDataBlock(const char* data, size_
                             if (cat001_sac_sic.contains("SIC") && cat_cols.contains("010.SIC"))
                                 cat_cols.at("010.SIC")[ri] = cat001_sac_sic.at("SIC");
                         }
+
+                        // Reconstruct CAT001 truncated time using last CAT002 full
+                        // Time of Day for the same data source. In flat mode the
+                        // data block / record ordering is lost, so the consumer
+                        // cannot perform this correction itself.
+                        if (flat_data_ && flat_data_->count(1))
+                        {
+                            // Determine SAC/SIC — either from this record or propagated
+                            size_t sac = 0, sic = 0;
+                            bool have_source = false;
+
+                            if (record_scratch.contains("SAC"))
+                            {
+                                sac = record_scratch.at("SAC").get<size_t>();
+                                sic = record_scratch.at("SIC").get<size_t>();
+                                have_source = true;
+                            }
+                            else if (!cat001_sac_sic.is_null()
+                                     && cat001_sac_sic.contains("SAC"))
+                            {
+                                sac = cat001_sac_sic.at("SAC").get<size_t>();
+                                sic = cat001_sac_sic.at("SIC").get<size_t>();
+                                have_source = true;
+                            }
+
+                            if (have_source)
+                            {
+                                std::string source_id =
+                                    to_string(sac) + "/" + to_string(sic);
+
+                                auto ref_it = cat002_last_tod_.find(source_id);
+
+                                if (ref_it != cat002_last_tod_.end())
+                                {
+                                    auto& cat_cols = flat_data_->at(1);
+                                    size_t ri = flat_record_indices_->at(1);
+                                    const std::string src_col =
+                                        "141.Truncated Time of Day";
+                                    const std::string dst_col =
+                                        "140.Time-of-Day";
+
+                                    bool has_trunc = cat_cols.contains(src_col)
+                                        && !cat_cols.at(src_col)[ri].is_null();
+
+                                    if (has_trunc)
+                                    {
+                                        double t_trunc = cat_cols.at(src_col)[ri].get<double>();
+
+                                        traced_assert(t_trunc >= 0 && t_trunc <= tod_24h);
+
+                                        auto period_it = cat002_last_tod_period_.find(source_id);
+
+                                        if (period_it != cat002_last_tod_period_.end())
+                                        {
+                                            traced_assert(period_it->second >= 0 && period_it->second < tod_24h);
+
+                                            double full_tod = t_trunc + period_it->second;
+
+                                            //loginf << "UGA1 " << source_id << " full_tod " << full_tod;
+
+                                            traced_assert(full_tod >= 0 && full_tod < tod_24h);
+                                            cat_cols[dst_col][ri] = full_tod;
+                                        }
+                                        else
+                                            cat_cols[dst_col][ri] = nullptr;
+                                    }
+                                    else
+                                    {
+                                        traced_assert(ref_it->second >= 0 && ref_it->second <= tod_24h);
+                                        cat_cols[dst_col][ri] = ref_it->second;
+
+                                        //loginf << "UGA1b " << source_id << " full_tod " << ref_it->second;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // CAT002: store full Time of Day and 512-second period base
+                    // per data source for CAT001 truncated time reconstruction.
+                    if (cat == 2 && record_scratch.contains("SAC")
+                        && record_scratch.contains("Time of Day"))
+                    {
+                        double tod = record_scratch.at("Time of Day").get<double>();
+                        traced_assert(tod >= 0 && tod < tod_24h);
+
+                        std::string source_id = to_string(record_scratch.at("SAC").get<size_t>()) +
+                                                "/" +
+                                                to_string(record_scratch.at("SIC").get<size_t>());
+
+                        double tod_period = 512.0 * static_cast<int>(tod / 512.0);
+                        traced_assert(tod_period >= 0 && tod_period < 86400.0);
+
+                        cat002_last_tod_[source_id] = tod;
+                        cat002_last_tod_period_[source_id] = tod_period;
+
+                        //loginf << "UGA2 " << source_id << " tod " << tod << " period " << tod_period;
                     }
 
 #if USE_OPENSSL
