@@ -73,7 +73,12 @@ class DataBlockFinderTask // : public tbb::task
                 }
                 catch (std::exception& e)
                 {
+                    error_ = true;
                     done_ = true;
+
+                    // wake consumer parked on data_block_chunks_cv_ so it doesn't deadlock
+                    jasterix_.notifyDataBlockChunksError();
+
                     throw (e);
                 }
             }

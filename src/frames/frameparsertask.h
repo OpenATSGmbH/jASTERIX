@@ -93,6 +93,9 @@ public:
                     error_ocurred_ = true;
                     done_ = true;
 
+                    // wake consumer parked on data_chunks_cv_ so it doesn't deadlock
+                    jasterix_.notifyDataChunksError();
+
                     throw (e);
                 }
             }

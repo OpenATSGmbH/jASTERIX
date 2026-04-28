@@ -237,6 +237,11 @@ std::unique_ptr<nlohmann::json> jASTERIX::analyzeFile(
 
     stop_decoding_ = false;
     std::unique_ptr<nlohmann::json> analysis_result {new nlohmann::json()};
+    // ensure required keys always exist, even if the producer task fails before
+    // any chunk is decoded
+    (*analysis_result)["num_frames"]  = 0;
+    (*analysis_result)["num_records"] = 0;
+    (*analysis_result)["num_errors"]  = 0;
 
     std::unique_ptr<FrameParserTask> task {
                                           new FrameParserTask(*this, frame_parser, json_header, data, index, file_size, debug_framing)};
@@ -253,7 +258,7 @@ std::unique_ptr<nlohmann::json> jASTERIX::analyzeFile(
     size_t num_callback_frames;
     std::pair<size_t, size_t> dec_ret{0, 0};
 
-    while (!stop_decoding_) //  && !task->errorOcurred()
+    while (!stop_decoding_)
     {
         traced_assert(!data_chunk);
 
@@ -330,14 +335,11 @@ std::unique_ptr<nlohmann::json> jASTERIX::analyzeFile(
 
     if (task->errorOcurred())
     {
-        // unsigned int num_errors {0};
-
-        // if (analysis_result->contains("num_errors"))
-        //     num_errors = analysis_result->at("num_errors");
-
-        // ++num_errors;
-
-        // (*analysis_result)["num_errors"] = num_errors;
+        unsigned int num_errors {0};
+        if (analysis_result->contains("num_errors"))
+            num_errors = analysis_result->at("num_errors");
+        ++num_errors;
+        (*analysis_result)["num_errors"] = num_errors;
         (*analysis_result)["num_frame_errors"] = 1;
     }
 
@@ -468,6 +470,10 @@ std::unique_ptr<nlohmann::json> jASTERIX::analyzeData(const char* data, unsigned
 
     std::unique_ptr<nlohmann::json> data_block_chunk;
     std::unique_ptr<nlohmann::json> analysis_result {new nlohmann::json()};
+    // ensure required keys always exist, even if the producer task fails before
+    // any chunk is decoded
+    (*analysis_result)["num_records"] = 0;
+    (*analysis_result)["num_errors"]  = 0;
 
     std::pair<size_t, size_t> dec_ret{0, 0};
 
@@ -956,6 +962,24 @@ void jASTERIX::stopDecoding()
     stop_decoding_ = true;
     data_block_chunks_cv_.notify_all();
     data_chunks_cv_.notify_all();
+}
+
+void jASTERIX::notifyDataChunksError()
+{
+    {
+        std::lock_guard<std::mutex> lock(data_chunks_mutex_);
+        data_processing_done_ = true;
+    }
+    data_chunks_cv_.notify_all();
+}
+
+void jASTERIX::notifyDataBlockChunksError()
+{
+    {
+        std::lock_guard<std::mutex> lock(data_block_chunks_mutex_);
+        data_block_processing_done_ = true;
+    }
+    data_block_chunks_cv_.notify_all();
 }
 
 void jASTERIX::decodeData(const char* data,

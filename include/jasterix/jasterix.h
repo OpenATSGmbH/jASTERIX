@@ -133,6 +133,12 @@ class jASTERIX
                            bool error, bool done);
     void addDataChunk(std::unique_ptr<nlohmann::json> data_chunk, size_t bytes_read, bool done);
 
+    // Called from a producer task when an exception aborts production. Marks the
+    // corresponding queue as done and wakes any consumer parked on the cv, so
+    // the consumer breaks out of its wait loop instead of deadlocking.
+    void notifyDataChunksError();
+    void notifyDataBlockChunksError();
+
     const std::vector<std::string>& framings() { return framings_; }
 
     const std::string& dataBlockDefinitionPath() const;
