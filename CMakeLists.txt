@@ -1,7 +1,7 @@
 set(JASTERIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
 message("  Path: ${JASTERIX_PATH}")
 
-cmake_minimum_required(VERSION 3.3)
+cmake_minimum_required(VERSION 3.28)
 set ( CMAKE_BUILD_TYPE RelWithDebInfo ) #Debug RelWithDebInfo Release
 
 project( jASTERIX )
