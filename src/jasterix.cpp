@@ -30,6 +30,7 @@
 
 #include <malloc.h>
 
+#include <algorithm>
 #include <chrono>
 #include <exception>
 #include <fstream>
@@ -1184,6 +1185,11 @@ void jASTERIX::decodeData(const char* data,
             num_records_ += dec_ret.first;
             num_errors_ += dec_ret.second;
 
+            // when decoding a PCAP, stamp each data block with its network capture time
+            // (before printing / callback so both see it). only for structured output.
+            if (pcap_packet_times_ && !do_flat)
+                stampPCAPTimes(data_block_chunk->at("data_blocks"));
+
             if (do_flat)
             {
                 auto flat_chunk = moveFlatData();
@@ -1224,6 +1230,33 @@ void jASTERIX::decodeData(const char* data,
         loginf << "jASTERIX decode data done" << logendl;
 }
 
+void jASTERIX::stampPCAPTimes(nlohmann::json& data_blocks)
+{
+    if (!pcap_packet_times_ || pcap_packet_times_->empty() || !data_blocks.is_array())
+        return;
+
+    const std::vector<std::pair<std::size_t, double>>& packet_times = *pcap_packet_times_;
+
+    for (auto& data_block : data_blocks)
+    {
+        if (!data_block.contains("content") || !data_block.at("content").contains("index"))
+            continue;
+
+        size_t idx = data_block.at("content").at("index");
+
+        // first packet whose payload starts after idx; the one before it contains idx
+        auto it = std::upper_bound(
+            packet_times.begin(), packet_times.end(), idx,
+            [](size_t value, const std::pair<std::size_t, double>& p) { return value < p.first; });
+
+        double ts = (it == packet_times.begin()) ? packet_times.front().second
+                                                  : std::prev(it)->second;
+
+        data_block["pcap_time"]       = PcapReader::timeToString(ts);
+        data_block["pcap_time_epoch"] = ts;
+    }
+}
+
 void jASTERIX::decodePCAPFile(const std::string& filename,
                               decode_callback_t data_callback,
                               bool do_flat)
@@ -1259,8 +1292,14 @@ void jASTERIX::decodePCAPFile(const std::string& filename,
             loginf << "jASTERIX: decodePCAPFile: decoding " << chunk.size() << " payload byte(s)"
                    << logendl;
 
+        // expose this chunk's packet offsets -> capture times so decodeData can stamp each
+        // decoded data block with its network time (consumed before print/callback)
+        pcap_packet_times_ = &reader.lastChunkPacketTimes();
+
         // each chunk is a self-contained, contiguous sequence of ASTERIX data blocks
         decodeData(chunk.data(), chunk.size(), data_callback, /*abortable*/ true, do_flat);
+
+        pcap_packet_times_ = nullptr;
     }
 
     if (reader.hasUnknownHeaders())

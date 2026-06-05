@@ -70,6 +70,14 @@ class PcapReader
     // sets eof to true when the file end is reached. returns false on read error.
     bool readNextChunk(std::vector<char>& out, size_t max_bytes, bool& eof);
 
+    // for the chunk produced by the last readNextChunk(): the capture timestamp of each
+    // packet, keyed by the byte offset where its payload begins in that chunk. sorted by
+    // offset (capture order). use to map a decoded data block back to its packet time.
+    const std::vector<std::pair<size_t, double>>& lastChunkPacketTimes() const
+    {
+        return chunk_packet_offsets_;
+    }
+
     bool hasUnknownHeaders() const;
 
     const std::set<int>& unknownLinkTypes() const { return unknown_link_types_; }
@@ -113,6 +121,9 @@ class PcapReader
     std::vector<char> chunk_buffer_;  // used in Chunk mode
     size_t            chunk_max_bytes_ = std::numeric_limits<size_t>::max();
     bool              chunk_full_      = false;
+
+    // packet payload start offset in chunk_buffer_ -> capture timestamp (Chunk mode)
+    std::vector<std::pair<size_t, double>> chunk_packet_offsets_;
 
     size_t num_packets_read_    = 0;
     size_t num_packets_dropped_ = 0;

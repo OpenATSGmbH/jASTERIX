@@ -196,6 +196,10 @@ class jASTERIX
 
     std::atomic<bool> stop_decoding_{false};
 
+    // during PCAP decode: packet payload offset -> capture time (seconds since epoch, UTC)
+    // for the current chunk, sorted by offset. nullptr when not decoding a PCAP.
+    const std::vector<std::pair<std::size_t, double>>* pcap_packet_times_{nullptr};
+
     // Flat/columnar mode state
     std::map<unsigned int, nlohmann::json> flat_data_;       // cat -> {leaf_name -> json::array}
     std::map<unsigned int, size_t> flat_record_indices_;     // cat -> current record index
@@ -225,6 +229,10 @@ class jASTERIX
 
     void forceStopTask (DataBlockFinderTask& task);
     void forceStopTask (FrameParserTask& task);
+
+    // stamps each data block in the array with "pcap_time"/"pcap_time_epoch" using
+    // pcap_packet_times_ and the data block's content index.
+    void stampPCAPTimes(nlohmann::json& data_blocks);
 };
 }  // namespace jASTERIX
 

@@ -546,9 +546,16 @@ std::pair<size_t, size_t> ASTERIXParser::decodeDataBlock(const char* data, size_
 
                     if (data_block_parsed_bytes > data_block_length)
                     {
-                        logerr << "ASTERIXParser: cat " << cat
-                               << " record size (" << data_block_parsed_bytes
-                               << ") overrun data block size (" << data_block_length << ")";
+                        // record overran its data block => decode error (desync)
+                        logerr << "asterix parser decoding of cat " << cat
+                               << " failed: record overran data block (parsed "
+                               << data_block_parsed_bytes << " > " << data_block_length << ")"
+                               << " after index " << data_block_index + data_block_parsed_bytes
+                               << " data block "
+                               << binary2hex((const unsigned char*)&data[data_block_index], data_block_length)
+                               << logendl;
+
+                        ++num_errors;
                         break;
                     }
 
@@ -628,9 +635,18 @@ std::pair<size_t, size_t> ASTERIXParser::decodeDataBlock(const char* data, size_
 
                     if (data_block_parsed_bytes > data_block_length)
                     {
-                        logerr << "ASTERIXParser: cat " << cat
-                               << " record size (" << data_block_parsed_bytes
-                               << ") overrun data block size (" << data_block_length << ")";
+                        // record overran its data block => decode error (desync)
+                        current_record["error"] = true;
+
+                        logerr << "asterix parser decoding of cat " << cat
+                               << " failed: record overran data block (parsed "
+                               << data_block_parsed_bytes << " > " << data_block_length << ")"
+                               << " after index " << data_block_index + data_block_parsed_bytes
+                               << " data block "
+                               << binary2hex((const unsigned char*)&data[data_block_index], data_block_length)
+                               << logendl;
+
+                        ++num_errors;
                         break;
                     }
 

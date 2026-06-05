@@ -231,6 +231,10 @@ void PcapReader::addPayload(const Signature& signature, const unsigned char* dat
     }
     else  // Mode::Chunk
     {
+        // record where this packet's payload starts, so decoded data blocks can be
+        // mapped back to the packet capture time
+        chunk_packet_offsets_.emplace_back(chunk_buffer_.size(), timestamp);
+
         chunk_buffer_.insert(chunk_buffer_.end(), data, data + len);
 
         if (chunk_buffer_.size() >= chunk_max_bytes_)
@@ -312,6 +316,7 @@ bool PcapReader::readNextChunk(std::vector<char>& out, size_t max_bytes, bool& e
     chunk_max_bytes_ = max_bytes;
     chunk_full_      = false;
     chunk_buffer_.clear();
+    chunk_packet_offsets_.clear();
 
     struct pcap_pkthdr* pkthdr = nullptr;
     const u_char*       packet = nullptr;
