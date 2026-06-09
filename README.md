@@ -21,7 +21,7 @@ For a detailed list of features, as well as the offered commercial services, ple
 | 030 |              7.0 |      |            |
 | 034 |             1.26 |      |            |
 | 048 |       1.15, 1.23 |  1.9 |            |
-| 062 | 1.12, 1.16, 1.18 |  1.2 | ARTAS TRIs |
+| 062 | 1.12, 1.16, 1.18, 1.21 |  1.2 | ARTAS TRIs |
 | 063 |          1.0,1.1 |      |            |
 | 065 |         1.2, 1.3 |      |            |
 | 247 |              1.2 |      |            |
@@ -46,6 +46,8 @@ For a detailed list of features, as well as the offered commercial services, ple
 The following libraries are mandatory:
 - Boost
 - Intel Thread Building Blocks
+- LibArchive
+- libpcap
 
 The following libaries are optional (can be deactivated in CMakeList.txt):
 - Log4Cpp
@@ -106,10 +108,17 @@ INFO    : Allowed options:
                            has to be set, disable per default
   --single_thread          process data in single thread
   --only_cats arg          restricts categories to be decoded, e.g. 20,21.
+  --editions arg           set non-default editions per category, e.g. 
+                           21:0.26,48:1.15.
+  --pcap                   input file is a PCAP capture (libpcap); ASTERIX 
+                           payload is extracted and decoded as raw/netto (no 
+                           framing).
   --log_perf               enable performance log after processing
   --add_artas_md5          add ARTAS MD5 hashes
   --check_artas_md5 arg    add and check ARTAS MD5 hashes (with record data), 
                            stating which categories to check, e.g. 1,20,21,48
+  --flat                   output in flat/columnar format (cat -> leaf_name -> 
+                           array)
   --add_record_data        add original record data in hex
   --print                  print JSON output
   --print_indent arg       intendation of json print, use -1 to disable.
@@ -370,6 +379,43 @@ To decode and print an ASTERIX file as JSON text, use:
 ```
 
 Decoded JSON can also be written to a text or ZIP file using the appropriate arguments.
+
+### Flat / Columnar Output
+
+By default the JSON output is structured (nested per record, mirroring the ASTERIX data block / record hierarchy as shown above). Using the `--flat` argument, the output is instead given in a flat, columnar layout: keyed by category number, each leaf field becomes a top-level array with one entry per record (indexed by record order). All arrays of a category have the same length; fields not present in a record (not selected by its FSPEC) are `null` at that position.
+
+```
+./jASTERIX_client-x86_64.AppImage --definition_path definitions/ --filename src/test/cat048ed1.15.bin --flat --print
+{
+    "48": {
+        "010.SAC": [0, 0, 5],
+        "010.SIC": [1, 1, 2],
+        "040.RHO": [73.92, null, 55.10],
+        "040.THETA": [89.67, null, 120.33],
+        "070.Mode-3/A reply": [470, 471, null],
+        "090.Flight Level": [370.0, 365.0, null],
+        "140.Time-of-Day": [33499.84, 33500.12, 33500.50],
+        "220.AIRCRAFT ADDRESS": [11226301, 11226301, null]
+    }
+}
+```
+
+This format is convenient for direct import into columnar/data-frame tooling (e.g. pandas, Apache Arrow). It is available both via the CLI `--flat` flag and the library API (the `do_flat` parameter of `decodeFile()` / `decodeData()` / `decodePCAPFile()`).
+
+### PCAP Captures
+
+ASTERIX data captured in a PCAP file (e.g. recorded with `tcpdump`/Wireshark) can be decoded directly using the `--pcap` argument. The ASTERIX payload is extracted from the network streams and decoded as raw/netto (no framing). Per-packet capture timestamps are tracked during decoding.
+
+```
+./jASTERIX_client-x86_64.AppImage --definition_path definitions/ --filename capture.pcap --pcap --print
+```
+
+`--pcap` combines with the other arguments, e.g. `--flat`, `--only_cats`, `--write_type`/`--write_filename`, and `--analyze`/`--analyze_csv`.
+
+In the library API the corresponding entry points are:
+- `decodePCAPFile(filename, callback, do_flat)` — decode a PCAP capture, delivering JSON chunks to the callback
+- `analyzePCAPFile(filename, record_limit)` — return a JSON summary of the data sources/contents in a capture
+- `analyzePCAPFileCSV(filename, record_limit)` — same analysis, returned as CSV text
 
 ### Analysis
 
