@@ -355,6 +355,17 @@ void SpecialPurposeField::addInfo (const std::string& edition, CategoryItemInfo&
         item_it->addInfo(edition, info);
 }
 
+void SpecialPurposeField::setupColumnWriters(const LeafSetupCallback& callback)
+{
+    column_mode_ = true;
+
+    for (auto& item_it : complex_items_)
+        item_it.second->setupColumnWriters(callback);
+
+    for (auto& item_it : simple_items_)
+        item_it->setupColumnWriters(callback);
+}
+
 
 // bool SpecialPurposeField::compareKey (const nlohmann::json& container, const std::string& value)
 //{

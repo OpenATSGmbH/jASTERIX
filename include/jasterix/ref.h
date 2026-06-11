@@ -40,6 +40,8 @@ class ReservedExpansionField : public ItemParserBase
 
     virtual void addInfo (const std::string& edition, CategoryItemInfo& info) const override;
 
+    virtual void setupColumnWriters(const LeafSetupCallback& callback) override;
+
   protected:
     std::unique_ptr<ItemParserBase> field_specification_;
     std::vector<std::string> items_names_;
