@@ -748,9 +748,11 @@ void jASTERIX::setupFlatColumns()
         if (cat_def->decode())
         {
             flat_record_indices_[cat] = 0;
-            cat_def->setupColumnWriters([this, cat](ItemParserBase* leaf, const std::string& name) {
+            cat_def->setupColumnWriters([this, cat](ItemParserBase* leaf, const std::string& name) -> nlohmann::json* {
                 flat_data_[cat][name] = nlohmann::json::array();
-                leaf->setColumnTarget(&flat_data_[cat][name], &flat_record_indices_[cat]);
+                if (leaf)
+                    leaf->setColumnTarget(&flat_data_[cat][name], &flat_record_indices_[cat]);
+                return &flat_data_[cat][name];
             });
 
 #if USE_OPENSSL

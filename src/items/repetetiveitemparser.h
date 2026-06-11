@@ -40,6 +40,9 @@ class RepetetiveItemParser : public ItemParserBase
 
   protected:
     std::vector<std::unique_ptr<ItemParserBase>> items_;
+
+    // Column for the REP count ('<prefix>.REP') in columnar mode
+    nlohmann::json* rep_column_target_ = nullptr;
 };
 
 }  // namespace jASTERIX
