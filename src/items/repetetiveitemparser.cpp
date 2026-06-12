@@ -75,6 +75,9 @@ size_t RepetetiveItemParser::parseItem(const char* data, size_t index, size_t si
 
     if (column_target_)
     {
+        if (rep_column_target_)
+            (*rep_column_target_)[*record_index_] = rep;
+
         json arr = json::array();
         for (unsigned int cnt = 0; cnt < rep; ++cnt)
         {
@@ -95,6 +98,8 @@ size_t RepetetiveItemParser::parseItem(const char* data, size_t index, size_t si
     }
     else
     {
+        target["REP"] = rep;
+
         json& j_data = target[name_] = json::array();
 
         for (unsigned int cnt = 0; cnt < rep; ++cnt)
@@ -151,6 +156,11 @@ void RepetetiveItemParser::addInfo (const std::string& edition, CategoryItemInfo
 void RepetetiveItemParser::setupColumnWriters(const LeafSetupCallback& callback)
 {
     callback(this, long_name_);
+
+    // extra column for the REP count, e.g. 'REF.CSN.REP' next to 'REF.CSN.CSN'
+    std::string rep_name = long_name_prefix_.size() ? long_name_prefix_ + ".REP" : "REP";
+    rep_column_target_ = callback(nullptr, rep_name);
+
     // Do NOT recurse into children — they write structured into each repetition element
 }
 

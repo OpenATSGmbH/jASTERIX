@@ -35,8 +35,11 @@ class ItemParserBase;
 
 // Callback invoked for each leaf parser during setupColumnWriters.
 // The caller uses it to create column arrays and inject pointers.
-using LeafSetupCallback = std::function<void(ItemParserBase* leaf,
-                                             const std::string& long_name)>;
+// Returns a pointer to the created column array. When leaf is nullptr, only the
+// column is created and returned (no pointer injection) - used by parsers that
+// need additional columns beyond their main one (e.g. repetitive REP counts).
+using LeafSetupCallback = std::function<nlohmann::json*(ItemParserBase* leaf,
+                                                        const std::string& long_name)>;
 
 class ItemParserBase
 {

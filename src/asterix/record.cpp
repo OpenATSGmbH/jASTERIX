@@ -817,6 +817,13 @@ void Record::setupColumnWriters(const LeafSetupCallback& callback)
     // Walk all items (covers both base UAP and conditional UAP entries)
     for (auto& [name, item] : items_)
         item->setupColumnWriters(callback);
+
+    // REF/SPF parser trees are attached separately from the UAP items
+    if (ref_)
+        ref_->setupColumnWriters(callback);
+
+    if (spf_)
+        spf_->setupColumnWriters(callback);
 }
 
 // bool Record::compareKey (const nlohmann::json& container, const std::string& value)

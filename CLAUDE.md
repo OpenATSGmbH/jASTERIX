@@ -256,6 +256,8 @@ Columnar layout keyed by category number. Each leaf field becomes a top-level ar
 
 Fields absent from a record (not selected by FSPEC) are `null` in the corresponding array position.
 
+Repetitive items additionally emit their repetition count: as a `"REP"` key next to the repetition array in structured mode (e.g. `"REF": { "CSN": { "CSN": [...], "REP": 2 } }`), and as a `<prefix>.REP` column in flat mode (e.g. `REF.CSN.REP` next to `REF.CSN.CSN`).
+
 ## ASTERIX definition format
 
 Category definitions in `definitions/categories/<NNN>/cat<NNN>_<edition>.json` follow this structure:

@@ -250,6 +250,14 @@ void ReservedExpansionField::addInfo (const std::string& edition, CategoryItemIn
         item_it.second->addInfo(edition, info);
 }
 
+void ReservedExpansionField::setupColumnWriters(const LeafSetupCallback& callback)
+{
+    column_mode_ = true;
+
+    for (auto& item_it : items_)
+        item_it.second->setupColumnWriters(callback);
+}
+
 // bool ReservedExpansionField::compareKey (const nlohmann::json& container, const std::string&
 // value)
 //{
