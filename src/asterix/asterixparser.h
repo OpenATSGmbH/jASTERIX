@@ -54,6 +54,11 @@ class ASTERIXParser
     void setFlatHashColumns(std::map<unsigned int, nlohmann::json*>* columns);
     void setFlatRecordDataColumns(std::map<unsigned int, nlohmann::json*>* columns);
     void setFlatData(std::map<unsigned int, nlohmann::json>* data);
+    // data block keys copied into per-record side columns (cat -> key -> column), e.g.
+    // recording_time / recording_day / recording_date, set on the data block object by the
+    // frame parser or the PCAP time stamping before the records are decoded
+    void setFlatDataBlockKeyColumns(
+        std::map<unsigned int, std::map<std::string, nlohmann::json*>>* columns);
     bool flatMode() const { return flat_record_indices_ != nullptr; }
 
     // records whose REF/SPF content did not match the definition and was kept as raw
@@ -73,6 +78,7 @@ class ASTERIXParser
     std::map<unsigned int, nlohmann::json*>* flat_hash_columns_{nullptr};
     std::map<unsigned int, nlohmann::json*>* flat_record_data_columns_{nullptr};
     std::map<unsigned int, nlohmann::json>* flat_data_{nullptr};
+    std::map<unsigned int, std::map<std::string, nlohmann::json*>>* flat_data_block_key_columns_{nullptr};
 
     // atomic: data blocks of one chunk are decoded in parallel (TBB) sharing this parser
     std::atomic<size_t> num_ref_errors_{0};

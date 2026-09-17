@@ -195,4 +195,14 @@ void RepetetiveItemParser::setupColumnWriters(const LeafSetupCallback& callback)
         data_item_it->setupColumnWriters(append_callback);
 }
 
+void RepetetiveItemParser::clearColumnWriters()
+{
+    ItemParserBase::clearColumnWriters();
+    rep_column_target_ = nullptr;
+    leaf_columns_.clear();
+
+    for (auto& data_item_it : items_)
+        data_item_it->clearColumnWriters();
+}
+
 }  // namespace jASTERIX

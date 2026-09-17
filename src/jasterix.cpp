@@ -32,6 +32,8 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
+#include <ctime>
 #include <exception>
 #include <fstream>
 #include <iostream>
@@ -49,6 +51,7 @@ int frame_chunk_size = 1000;
 int data_block_limit = -1;
 int data_block_chunk_size = 1000;
 int data_write_size = 1;
+int record_limit = -1;
 bool single_thread = false;
 
 #if USE_OPENSSL
@@ -218,7 +221,9 @@ std::unique_ptr<nlohmann::json> jASTERIX::analyzeFile(
 
     nlohmann::json framing_definition = loadFramingDefinition(framing_str);
 
-            // create ASTERIX parser
+            resetChunkState();
+
+    // create ASTERIX parser
     ASTERIXParser asterix_parser(data_block_definition_, category_definitions_, debug_);
 
             // create frame parser
@@ -232,6 +237,11 @@ std::unique_ptr<nlohmann::json> jASTERIX::analyzeFile(
             // parsing header
     if (frame_parser.hasFileHeaderItems())
         index = frame_parser.parseHeader(data, 0, file_size, json_header, debug_framing);
+
+    clearFlatColumns();  // analysis is always structured
+
+    record_limit_base_ = num_records_;
+    size_t frames_base = num_frames_;
 
     if (debug_)
         loginf << "jasterix: analyze creating frame parser task index " << index << " header '"
@@ -247,8 +257,8 @@ std::unique_ptr<nlohmann::json> jASTERIX::analyzeFile(
     (*analysis_result)["num_ref_errors"] = 0;
     (*analysis_result)["num_spf_errors"] = 0;
 
-    // REF/SPF fallback counts accumulate in the local parser; members stay cumulative
-    // per instance like num_errors_
+    // the counters accumulate over the instance lifetime, the result reports this call
+    size_t errors_base = num_errors_;
     size_t ref_errors_base = num_ref_errors_;
     size_t spf_errors_base = num_spf_errors_;
 
@@ -294,7 +304,7 @@ std::unique_ptr<nlohmann::json> jASTERIX::analyzeFile(
         num_callback_frames = data_chunk->at("frames").size();
         num_frames_ += num_callback_frames;
 
-        (*analysis_result)["num_frames"] = num_frames_;
+        (*analysis_result)["num_frames"] = num_frames_ - frames_base;
 
         try
         {
@@ -304,10 +314,10 @@ std::unique_ptr<nlohmann::json> jASTERIX::analyzeFile(
             num_ref_errors_ = ref_errors_base + asterix_parser.numREFErrors();
             num_spf_errors_ = spf_errors_base + asterix_parser.numSPFErrors();
 
-            (*analysis_result)["num_records"] = num_records_;
-            (*analysis_result)["num_errors"] = num_errors_;
-            (*analysis_result)["num_ref_errors"] = num_ref_errors_;
-            (*analysis_result)["num_spf_errors"] = num_spf_errors_;
+            (*analysis_result)["num_records"] = num_records_ - record_limit_base_;
+            (*analysis_result)["num_errors"] = num_errors_ - errors_base;
+            (*analysis_result)["num_ref_errors"] = num_ref_errors_ - ref_errors_base;
+            (*analysis_result)["num_spf_errors"] = num_spf_errors_ - spf_errors_base;
 
             if (debug_)
                 loginf << "jASTERIX analyze " << num_frames_ << " frames, " << num_records_
@@ -326,7 +336,10 @@ std::unique_ptr<nlohmann::json> jASTERIX::analyzeFile(
 
             data_chunk = nullptr;
 
-            if (record_limit > 0 && num_records_ >= record_limit)
+            // an explicit limit counts the records of this call as well, the counter itself
+            // accumulates over the instance lifetime
+            if (record_limit > 0 ? num_records_ - record_limit_base_ >= record_limit
+                                 : recordLimitReached())
             {
                 if (debug_)
                     loginf << "jASTERIX analyze hit record limit" << logendl;
@@ -572,6 +585,12 @@ std::string jASTERIX::analyzePCAPFileCSV(const std::string& filename, unsigned i
 std::unique_ptr<nlohmann::json> jASTERIX::analyzeData(const char* data, unsigned int total_size,
                                                       unsigned int record_limit)
 {
+    record_limit_base_ = num_records_;
+
+    clearFlatColumns();  // analysis is always structured
+
+    resetChunkState();
+
     // create ASTERIX parser
     ASTERIXParser asterix_parser(data_block_definition_, category_definitions_, debug_);
 
@@ -598,8 +617,8 @@ std::unique_ptr<nlohmann::json> jASTERIX::analyzeData(const char* data, unsigned
     (*analysis_result)["num_ref_errors"] = 0;
     (*analysis_result)["num_spf_errors"] = 0;
 
-    // REF/SPF fallback counts accumulate in the local parser; members stay cumulative
-    // per instance like num_errors_
+    // the counters accumulate over the instance lifetime, the result reports this call
+    size_t errors_base = num_errors_;
     size_t ref_errors_base = num_ref_errors_;
     size_t spf_errors_base = num_spf_errors_;
 
@@ -651,10 +670,10 @@ std::unique_ptr<nlohmann::json> jASTERIX::analyzeData(const char* data, unsigned
             num_ref_errors_ = ref_errors_base + asterix_parser.numREFErrors();
             num_spf_errors_ = spf_errors_base + asterix_parser.numSPFErrors();
 
-            (*analysis_result)["num_records"] = num_records_;
-            (*analysis_result)["num_errors"] = num_errors_;
-            (*analysis_result)["num_ref_errors"] = num_ref_errors_;
-            (*analysis_result)["num_spf_errors"] = num_spf_errors_;
+            (*analysis_result)["num_records"] = num_records_ - record_limit_base_;
+            (*analysis_result)["num_errors"] = num_errors_ - errors_base;
+            (*analysis_result)["num_ref_errors"] = num_ref_errors_ - ref_errors_base;
+            (*analysis_result)["num_spf_errors"] = num_spf_errors_ - spf_errors_base;
 
             if (num_errors_)
             {
@@ -669,7 +688,10 @@ std::unique_ptr<nlohmann::json> jASTERIX::analyzeData(const char* data, unsigned
 
             data_block_chunk = nullptr;
 
-            if (record_limit > 0 && num_records_ >= record_limit)
+            // an explicit limit counts the records of this call as well, the counter itself
+            // accumulates over the instance lifetime
+            if (record_limit > 0 ? num_records_ - record_limit_base_ >= record_limit
+                                 : recordLimitReached())
             {
                 if (debug_)
                     loginf << "jASTERIX analyze hit record limit" << logendl;
@@ -774,6 +796,7 @@ void jASTERIX::setupFlatColumns()
     flat_data_.clear();
     flat_hash_columns_.clear();
     flat_record_data_columns_.clear();
+    flat_data_block_key_columns_.clear();
 
     for (auto& [cat, cat_def] : category_definitions_)
     {
@@ -799,8 +822,27 @@ void jASTERIX::setupFlatColumns()
                 flat_data_[cat]["record_data"] = nlohmann::json::array();
                 flat_record_data_columns_[cat] = &flat_data_[cat]["record_data"];
             }
+
+            // recording time keys of the current source, copied per record from the data block
+            for (const std::string& key : flat_data_block_keys_)
+            {
+                flat_data_[cat][key] = nlohmann::json::array();
+                flat_data_block_key_columns_[cat][key] = &flat_data_[cat][key];
+            }
         }
     }
+}
+
+void jASTERIX::clearFlatColumns()
+{
+    for (auto& [cat, cat_def] : category_definitions_)
+        cat_def->clearColumnWriters();
+
+    flat_data_.clear();
+    flat_record_indices_.clear();
+    flat_hash_columns_.clear();
+    flat_record_data_columns_.clear();
+    flat_data_block_key_columns_.clear();
 }
 
 std::unique_ptr<nlohmann::json> jASTERIX::moveFlatData()
@@ -838,7 +880,14 @@ void jASTERIX::decodeFile(
 
     nlohmann::json framing_definition = loadFramingDefinition(framing_str);
 
-            // create ASTERIX parser
+    record_limit_base_ = num_records_;
+
+    // recording time keys this framing provides, become flat side columns
+    flat_data_block_keys_ = FrameParser::recordingKeys(framing_definition);
+
+            resetChunkState();
+
+    // create ASTERIX parser
     ASTERIXParser asterix_parser(data_block_definition_, category_definitions_, debug_);
 
     // REF/SPF fallback counts accumulate in the local parser; members stay cumulative
@@ -854,7 +903,10 @@ void jASTERIX::decodeFile(
         asterix_parser.setFlatHashColumns(&flat_hash_columns_);
         asterix_parser.setFlatRecordDataColumns(&flat_record_data_columns_);
         asterix_parser.setFlatData(&flat_data_);
+        asterix_parser.setFlatDataBlockKeyColumns(&flat_data_block_key_columns_);
     }
+    else
+        clearFlatColumns();
 
             // create frame parser
     bool debug_framing = debug_ && !debug_exclude_framing_;
@@ -967,6 +1019,14 @@ void jASTERIX::decodeFile(
 
                 break;
             }
+
+            if (recordLimitReached())
+            {
+                if (debug_)
+                    loginf << "jASTERIX processing hit record limit" << logendl;
+
+                break;
+            }
         }
         catch (std::exception& e)
         {
@@ -998,6 +1058,12 @@ void jASTERIX::decodeFile(
 
     //@TODO: most likely we could call decodeFile(const char*, ...) here
 
+    flat_data_block_keys_.clear();  // raw/netto file, no recording time source
+
+    record_limit_base_ = num_records_;
+
+    resetChunkState();
+
     // create ASTERIX parser
     ASTERIXParser asterix_parser(data_block_definition_, category_definitions_, debug_);
 
@@ -1014,7 +1080,10 @@ void jASTERIX::decodeFile(
         asterix_parser.setFlatHashColumns(&flat_hash_columns_);
         asterix_parser.setFlatRecordDataColumns(&flat_record_data_columns_);
         asterix_parser.setFlatData(&flat_data_);
+        asterix_parser.setFlatDataBlockKeyColumns(&flat_data_block_key_columns_);
     }
+    else
+        clearFlatColumns();
 
     if (debug_)
         loginf << "jASTERIX: finding data blocks" << logendl;
@@ -1110,6 +1179,14 @@ void jASTERIX::decodeFile(
                 else
                     data_block_chunk = nullptr;
             }
+
+            if (recordLimitReached())
+            {
+                if (debug_)
+                    loginf << "jASTERIX processing hit record limit" << logendl;
+
+                break;
+            }
         }
         catch (std::exception& e)
         {
@@ -1161,12 +1238,25 @@ void jASTERIX::decodeData(const char* data,
                           bool abortable,
                           bool do_flat)
 {
+    resetChunkState();
+
     ASTERIXParser asterix_parser_instance (data_block_definition_, category_definitions_, debug_);
 
     // REF/SPF fallback counts accumulate in the local parser; members stay cumulative
     // per instance like num_errors_
     size_t ref_errors_base = num_ref_errors_;
     size_t spf_errors_base = num_spf_errors_;
+
+    // a PCAP source provides the capture time per data block, plain buffers provide nothing
+    if (pcap_packet_times_)
+        flat_data_block_keys_ = {"recording_time", "recording_date"};
+    else
+        flat_data_block_keys_.clear();
+
+    // decodePCAPFile resets the record count once and calls decodeData per capture chunk,
+    // its record limit spans all chunks
+    if (!pcap_packet_times_)
+        record_limit_base_ = num_records_;
 
     if (do_flat)
     {
@@ -1176,6 +1266,7 @@ void jASTERIX::decodeData(const char* data,
         asterix_parser_instance.setFlatHashColumns(&flat_hash_columns_);
         asterix_parser_instance.setFlatRecordDataColumns(&flat_record_data_columns_);
         asterix_parser_instance.setFlatData(&flat_data_);
+        asterix_parser_instance.setFlatDataBlockKeyColumns(&flat_data_block_key_columns_);
     }
     else
     {
@@ -1183,6 +1274,9 @@ void jASTERIX::decodeData(const char* data,
         asterix_parser_instance.setFlatHashColumns(nullptr);
         asterix_parser_instance.setFlatRecordDataColumns(nullptr);
         asterix_parser_instance.setFlatData(nullptr);
+        asterix_parser_instance.setFlatDataBlockKeyColumns(nullptr);
+
+        clearFlatColumns();
     }
 
     data_block_processing_done_ = false;
@@ -1243,17 +1337,18 @@ void jASTERIX::decodeData(const char* data,
             if (!data_block_chunk->at("data_blocks").is_array())
                 throw runtime_error("jasterix data blocks is not an array");
 
+            // when decoding a PCAP, stamp each data block with its network capture time
+            // before the records are decoded, so flat mode copies recording_time /
+            // recording_date per record and structured output carries them per data block
+            if (pcap_packet_times_)
+                stampPCAPTimes(data_block_chunk->at("data_blocks"));
+
             dec_ret =
                 asterix_parser_instance.decodeDataBlocks(data, total_size, data_block_chunk->at("data_blocks"), debug_);
             num_records_ += dec_ret.first;
             num_errors_ += dec_ret.second;
             num_ref_errors_ = ref_errors_base + asterix_parser_instance.numREFErrors();
             num_spf_errors_ = spf_errors_base + asterix_parser_instance.numSPFErrors();
-
-            // when decoding a PCAP, stamp each data block with its network capture time
-            // (before printing / callback so both see it). only for structured output.
-            if (pcap_packet_times_ && !do_flat)
-                stampPCAPTimes(data_block_chunk->at("data_blocks"));
 
             if (do_flat)
             {
@@ -1276,6 +1371,14 @@ void jASTERIX::decodeData(const char* data,
                     data_callback(std::move(data_block_chunk), chunk_bytes_read, 0, dec_ret.first, dec_ret.second);
                 else
                     data_block_chunk = nullptr;
+            }
+
+            if (recordLimitReached())
+            {
+                if (debug_)
+                    loginf << "jASTERIX processing hit record limit" << logendl;
+
+                break;
             }
         }
         catch (std::exception& e)
@@ -1319,6 +1422,16 @@ void jASTERIX::stampPCAPTimes(nlohmann::json& data_blocks)
 
         data_block["pcap_time"]       = PcapReader::timeToString(ts);
         data_block["pcap_time_epoch"] = ts;
+
+        // seconds since UTC midnight and the UTC date as YYYYMMDD, same keys as the framings
+        time_t secs = static_cast<time_t>(std::floor(ts));
+        struct tm tm_utc;
+        gmtime_r(&secs, &tm_utc);
+
+        data_block["recording_time"] = tm_utc.tm_hour * 3600.0 + tm_utc.tm_min * 60.0
+                                       + tm_utc.tm_sec + (ts - static_cast<double>(secs));
+        data_block["recording_date"] = static_cast<unsigned int>(
+            (tm_utc.tm_year + 1900) * 10000 + (tm_utc.tm_mon + 1) * 100 + tm_utc.tm_mday);
     }
 }
 
@@ -1341,13 +1454,14 @@ void jASTERIX::decodePCAPFile(const std::string& filename,
     num_errors_  = 0;
     num_ref_errors_ = 0;
     num_spf_errors_ = 0;
+    record_limit_base_ = 0;
 
     stop_decoding_ = false;
 
     std::vector<char> chunk;
     bool              eof = false;
 
-    while (!eof && !stop_decoding_)
+    while (!eof && !stop_decoding_ && !recordLimitReached())
     {
         if (!reader.readNextChunk(chunk, chunk_max_bytes, eof))
             throw std::runtime_error("jASTERIX error reading PCAP file '" + filename + "'");
@@ -1380,6 +1494,12 @@ void jASTERIX::decodePCAPFile(const std::string& filename,
 size_t jASTERIX::numFrames() const { return num_frames_; }
 
 size_t jASTERIX::numRecords() const { return num_records_; }
+
+bool jASTERIX::recordLimitReached() const
+{
+    return record_limit > 0
+           && num_records_ - record_limit_base_ >= static_cast<size_t>(record_limit);
+}
 
 void jASTERIX::addDataBlockChunk(std::unique_ptr<nlohmann::json> data_block_chunk, size_t bytes_read,
                                  bool error, bool done)
@@ -1732,6 +1852,24 @@ void jASTERIX::clearDataBlockChunks()
     data_block_chunks_cv_.notify_one();
 }
 
+void jASTERIX::resetChunkState()
+{
+    // a completed producer task of an earlier call leaves the done flag set, so the consumer
+    // loop of the next call would end before the new task pushes its first chunk. a stopped
+    // task may have left a chunk whose indices point into the buffer of that earlier call.
+    clearDataChunks();
+    clearDataBlockChunks();
+
+    {
+        std::lock_guard<std::mutex> lock(data_chunks_mutex_);
+        data_processing_done_ = false;
+    }
+    {
+        std::lock_guard<std::mutex> lock(data_block_chunks_mutex_);
+        data_block_processing_done_ = false;
+    }
+}
+
 
 std::string jASTERIX::toCSV (
     const std::map<std::string, std::map<std::string, std::map<std::string, nlohmann::json>>>& data_item_analysis)
@@ -1801,6 +1939,10 @@ void jASTERIX::forceStopTask (DataBlockFinderTask& task)
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
+    // the task may have pushed a last chunk between the final clear and setting done. it
+    // would be decoded against the buffer of the next call.
+    clearDataBlockChunks();
+
     loginf << "jASTERIX: forceStopTask: done" << logendl;
 }
 
@@ -1815,6 +1957,9 @@ void jASTERIX::forceStopTask (FrameParserTask& task)
         clearDataChunks();
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
+
+    // same as for the data block finder task: a chunk pushed after the final clear
+    clearDataChunks();
 
     loginf << "jASTERIX: forceStopTask: done" << logendl;
 }

@@ -197,4 +197,11 @@ void CompoundItemParser::setupColumnWriters(const LeafSetupCallback& callback)
         item_it->setupColumnWriters(callback);
 }
 
+void CompoundItemParser::clearColumnWriters()
+{
+    ItemParserBase::clearColumnWriters();
+    for (auto& item_it : items_)
+        item_it->clearColumnWriters();
+}
+
 }  // namespace jASTERIX

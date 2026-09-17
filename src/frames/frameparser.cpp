@@ -19,6 +19,11 @@
 
 #include <tbb/tbb.h>
 
+#include <algorithm>
+#include <cctype>
+#include <cmath>
+#include <ctime>
+
 #include "asterixparser.h"
 #include "itemparserbase.h"
 #include "jasterix.h"
@@ -78,6 +83,24 @@ FrameParser::FrameParser(const json& framing_definition, ASTERIXParser& asterix_
         traced_assert(item);
         frame_items_.push_back(std::unique_ptr<ItemParserBase>{item});
     }
+
+    // computed recording time: start wall time from a file header item plus a per-frame
+    // offset item scaled to seconds (RFF). framings with direct items (IOSS) name them
+    // recording_time / recording_day instead.
+    if (framing_definition.contains("recording_time"))
+    {
+        const json& def = framing_definition.at("recording_time");
+
+        if (!def.is_object() || !def.contains("start_item") || !def.contains("offset_item"))
+            throw runtime_error("frame parser construction with invalid recording_time definition");
+
+        has_computed_recording_time_ = true;
+        recording_start_item_ = def.at("start_item");
+        recording_offset_item_ = def.at("offset_item");
+
+        if (def.contains("offset_lsb"))
+            recording_offset_lsb_ = def.at("offset_lsb");
+    }
 }
 
 size_t FrameParser::parseHeader(const char* data, size_t index, size_t total_size, json& target,
@@ -94,6 +117,33 @@ size_t FrameParser::parseHeader(const char* data, size_t index, size_t total_siz
     {
         parsed_bytes +=
             j_item->parseItem(data, index + parsed_bytes, total_size, parsed_bytes, total_size, target, debug);
+    }
+
+    if (has_computed_recording_time_)
+    {
+        recording_start_available_ = false;
+
+        if (target.contains(recording_start_item_) && target.at(recording_start_item_).is_string())
+        {
+            int year, month, day, hours, minutes, seconds;
+
+            if (parseWallTime(target.at(recording_start_item_).get<std::string>(), year, month,
+                              day, hours, minutes, seconds))
+            {
+                recording_start_available_ = true;
+                recording_start_sod_ = hours * 3600.0 + minutes * 60.0 + seconds;
+                recording_start_year_ = year;
+                recording_start_month_ = month;
+                recording_start_day_ = day;
+
+                target["recording_start_time"] = recording_start_sod_;
+                target["recording_start_date"] = dateYYYYMMDD(year, month, day, 0);
+            }
+        }
+
+        if (!recording_start_available_)
+            logwrn << "frame parser: file header has no readable recording start time, "
+                   << "recording_time is relative to the recording start" << logendl;
     }
 
     return parsed_bytes;
@@ -179,6 +229,9 @@ std::tuple<size_t, size_t, bool, bool> FrameParser::findFrames(const char* data,
             parsed_bytes_frame += parsed_bytes;
             parsed_bytes_sum += parsed_bytes;
         }
+        if (has_computed_recording_time_)
+            addComputedRecordingTime(current_frame);
+
         current_frame["cnt"] = chunk_frames_cnt;
         //        loginf << "UGA FP FOUND '" << j_frames[chunk_frames_cnt].dump(4) << "'" <<
         //        logendl;
@@ -240,6 +293,131 @@ std::pair<size_t, size_t> FrameParser::decodeFrames(const char* data, size_t tot
 
 bool FrameParser::hasFileHeaderItems() const { return has_file_header_items_; }
 
+std::vector<std::string> FrameParser::recordingKeys(const json& framing_definition)
+{
+    const std::vector<std::string> all_keys{"recording_time", "recording_day", "recording_date"};
+
+    if (framing_definition.contains("recording_time")
+        && framing_definition.at("recording_time").is_object())
+        return all_keys;
+
+    std::vector<std::string> keys;
+
+    if (framing_definition.contains("frame_items") && framing_definition.at("frame_items").is_array())
+    {
+        for (const json& item : framing_definition.at("frame_items"))
+        {
+            if (!item.contains("name"))
+                continue;
+
+            for (const std::string& key : all_keys)
+                if (item.at("name") == key)
+                    keys.push_back(key);
+        }
+    }
+
+    return keys;
+}
+
+bool FrameParser::parseWallTime(const std::string& text, int& year, int& month, int& day,
+                                int& hours, int& minutes, int& seconds)
+{
+    // the position checks below need at least 19 characters
+    std::string buffer = text;
+    if (buffer.size() < 19)
+        buffer.resize(19, '\0');
+
+    // fixed-width decimal field, digits only
+    auto field = [&buffer](size_t pos, size_t len, int& value) -> bool {
+        std::string digits = buffer.substr(pos, len);
+
+        if (digits.empty()
+            || !std::all_of(digits.begin(), digits.end(),
+                            [](unsigned char c) { return std::isdigit(c); }))
+            return false;
+
+        value = std::stoi(digits);
+        return true;
+    };
+
+    // two-digit years: 70..99 are 19xx, 00..69 are 20xx, as in the SDL reference reader
+    auto century = [](int& y) { y += (y >= 70) ? 1900 : 2000; };
+
+    if (buffer[3] == '/' && buffer[6] == '/' && buffer[9] == ' ' && buffer[12] == ':'
+        && buffer[15] == ':')
+    {
+        // US style " MM/DD/YY HH:MM:SS"
+        if (!field(1, 2, month) || !field(4, 2, day) || !field(7, 2, year) || !field(10, 2, hours)
+            || !field(13, 2, minutes) || !field(16, 2, seconds))
+            return false;
+
+        century(year);
+    }
+    else if (buffer[2] == '/' && buffer[5] == '/' && buffer[8] == ' ' && buffer[11] == ':'
+             && buffer[14] == ':')
+    {
+        // German style "DD/MM/YY HH:MM:SS"
+        if (!field(0, 2, day) || !field(3, 2, month) || !field(6, 2, year) || !field(9, 2, hours)
+            || !field(12, 2, minutes) || !field(15, 2, seconds))
+            return false;
+
+        if (month > 12 && day <= 12)
+            std::swap(month, day);
+
+        century(year);
+    }
+    else if (buffer[4] == '-' && buffer[7] == '-' && buffer[10] == ' ' && buffer[13] == ':'
+             && buffer[16] == ':')
+    {
+        // "YYYY-MM-DD HH:MM:SS"
+        if (!field(0, 4, year) || !field(5, 2, month) || !field(8, 2, day) || !field(11, 2, hours)
+            || !field(14, 2, minutes) || !field(17, 2, seconds))
+            return false;
+    }
+    else
+        return false;
+
+    return month >= 1 && month <= 12 && day >= 1 && day <= 31 && hours < 24 && minutes < 60
+           && seconds < 60;
+}
+
+unsigned int FrameParser::dateYYYYMMDD(int year, int month, int day, int add_days)
+{
+    // timegm normalizes an overflowing day of month into the following months
+    struct tm tm_date {};
+    tm_date.tm_year = year - 1900;
+    tm_date.tm_mon = month - 1;
+    tm_date.tm_mday = day + add_days;
+
+    time_t secs = timegm(&tm_date);
+
+    struct tm tm_utc;
+    gmtime_r(&secs, &tm_utc);
+
+    return static_cast<unsigned int>((tm_utc.tm_year + 1900) * 10000 + (tm_utc.tm_mon + 1) * 100
+                                     + tm_utc.tm_mday);
+}
+
+void FrameParser::addComputedRecordingTime(json& frame)
+{
+    if (!frame.contains(recording_offset_item_) || !frame.at(recording_offset_item_).is_number())
+        return;
+
+    constexpr double seconds_per_day = 86400.0;
+
+    double offset = frame.at(recording_offset_item_).get<double>() * recording_offset_lsb_;
+    double total = (recording_start_available_ ? recording_start_sod_ : 0.0) + offset;
+
+    unsigned int days = static_cast<unsigned int>(std::floor(total / seconds_per_day));
+
+    frame["recording_time"] = total - days * seconds_per_day;
+    frame["recording_day"] = days;
+
+    if (recording_start_available_)
+        frame["recording_date"] = dateYYYYMMDD(recording_start_year_, recording_start_month_,
+                                               recording_start_day_, static_cast<int>(days));
+}
+
 std::pair<size_t, size_t> FrameParser::decodeFrame(const char* data, size_t total_size, json& json_frame, bool debug)
 {
     if (!json_frame.contains("content"))
@@ -252,7 +430,7 @@ std::pair<size_t, size_t> FrameParser::decodeFrame(const char* data, size_t tota
     //            "length": 56
     //        },
     //        "frame_length": 56,
-    //        "frame_relative_time_ms": 1158152192
+    //        "frame_relative_time_ms": 2117
     //    }
 
     //    loginf << "UGA FP decode '" << json_frame.dump(4) << "'" << logendl;
@@ -285,6 +463,17 @@ std::pair<size_t, size_t> FrameParser::decodeFrame(const char* data, size_t tota
 
     if (!frame_content.at("data_blocks").is_array())
         throw runtime_error("frame parser scoped frames data blocks are non-array");
+
+    // recording time of the frame applies to every data block in it. set before the records
+    // are decoded, so flat mode can copy the values per record.
+    for (const char* key : {"recording_time", "recording_day", "recording_date"})
+    {
+        if (!json_frame.contains(key))
+            continue;
+
+        for (json& data_block : frame_content.at("data_blocks"))
+            data_block[key] = json_frame.at(key);
+    }
 
     std::pair<size_t, size_t> ret{0, 0};
     std::pair<size_t, size_t> dec_ret{0, 0};

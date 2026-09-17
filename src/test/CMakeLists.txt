@@ -12,6 +12,7 @@ target_sources( test_categories
     PUBLIC
         "${LIB_DIR}/catch.hpp"
         "${CMAKE_CURRENT_LIST_DIR}/test_jasterix.h"
+        "${CMAKE_CURRENT_LIST_DIR}/test_synthetic_files.h"
     PRIVATE
         "${CMAKE_CURRENT_LIST_DIR}/test_cat001_1.1.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/test_cat001_flat_sacsic.cpp"
@@ -45,6 +46,11 @@ target_sources( test_categories
         "${CMAKE_CURRENT_LIST_DIR}/test_artas_md5.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/test_record_data.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/test_flat_decode_data.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/test_recording_time_ioss.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/test_recording_time_rff.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/test_recording_time_pcap.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/test_record_limit.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/test_consecutive_calls.cpp"
 )
 
 target_sources( test_limits

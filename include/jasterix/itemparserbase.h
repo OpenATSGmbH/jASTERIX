@@ -80,6 +80,11 @@ public:
     // Default impl is a no-op (for parsers like SkipBytes that produce no output).
     virtual void setupColumnWriters(const LeafSetupCallback& callback);
 
+    // Leaves columnar mode: drops the column targets and the captured columns, so a later
+    // structured decode on the same parser tree writes into the records again. Containers
+    // override this to recurse into their items and to reset their column mode.
+    virtual void clearColumnWriters();
+
     // Inject column target for this parser (called by LeafSetupCallback).
     void setColumnTarget(nlohmann::json* column_array, size_t* record_index);
 

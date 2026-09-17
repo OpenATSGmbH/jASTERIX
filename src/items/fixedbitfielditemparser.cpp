@@ -192,4 +192,11 @@ void FixedBitFieldItemParser::setupColumnWriters(const LeafSetupCallback& callba
         sub_item_it->setupColumnWriters(callback);
 }
 
+void FixedBitFieldItemParser::clearColumnWriters()
+{
+    ItemParserBase::clearColumnWriters();
+    for (auto& sub_item_it : items_)
+        sub_item_it->clearColumnWriters();
+}
+
 }  // namespace jASTERIX

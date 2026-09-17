@@ -848,6 +848,19 @@ void Record::setupColumnWriters(const LeafSetupCallback& callback)
         spf_->setupColumnWriters(callback);
 }
 
+void Record::clearColumnWriters()
+{
+    ItemParserBase::clearColumnWriters();
+    for (auto& [name, item] : items_)
+        item->clearColumnWriters();
+
+    if (ref_)
+        ref_->clearColumnWriters();
+
+    if (spf_)
+        spf_->clearColumnWriters();
+}
+
 // bool Record::compareKey (const nlohmann::json& container, const std::string& value)
 //{
 //    //loginf << "mapping key '" << key_definition << "' src value '" << src_value << "'";

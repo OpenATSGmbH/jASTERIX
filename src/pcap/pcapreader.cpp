@@ -308,6 +308,9 @@ bool PcapReader::readNextChunk(std::vector<char>& out, size_t max_bytes, bool& e
 
     if (reached_eof_)
     {
+        // the caller reuses its buffer across calls, so the previous chunk must not be
+        // delivered again
+        out.clear();
         eof = true;
         return true;
     }

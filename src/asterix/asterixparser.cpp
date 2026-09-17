@@ -245,6 +245,12 @@ void ASTERIXParser::setFlatData(std::map<unsigned int, json>* data)
     flat_data_ = data;
 }
 
+void ASTERIXParser::setFlatDataBlockKeyColumns(
+    std::map<unsigned int, std::map<std::string, nlohmann::json*>>* columns)
+{
+    flat_data_block_key_columns_ = columns;
+}
+
 /**
  * Removes the cells of a rejected record from all columns of the category.
  *
@@ -669,6 +675,19 @@ std::pair<size_t, size_t> ASTERIXParser::decodeDataBlock(const char* data, size_
                                            record_parsed_bytes));
                         else
                             flat_record_data_columns_->at(cat)->push_back(nullptr);
+                    }
+
+                    // data block keys (recording_time etc.) as per-record side columns,
+                    // null when the data block does not carry the key
+                    if (flat_data_block_key_columns_ && flat_data_block_key_columns_->count(cat))
+                    {
+                        for (auto& [key, column] : flat_data_block_key_columns_->at(cat))
+                        {
+                            if (data_block.contains(key))
+                                column->push_back(data_block.at(key));
+                            else
+                                column->push_back(nullptr);
+                        }
                     }
 
                     ++flat_record_indices_->at(cat);

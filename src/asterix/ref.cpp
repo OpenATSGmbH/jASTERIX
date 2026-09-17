@@ -262,6 +262,13 @@ void ReservedExpansionField::setupColumnWriters(const LeafSetupCallback& callbac
         item_it.second->setupColumnWriters(capturing);
 }
 
+void ReservedExpansionField::clearColumnWriters()
+{
+    ItemParserBase::clearColumnWriters();
+    for (auto& item_it : items_)
+        item_it.second->clearColumnWriters();
+}
+
 // bool ReservedExpansionField::compareKey (const nlohmann::json& container, const std::string&
 // value)
 //{
