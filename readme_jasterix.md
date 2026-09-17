@@ -118,6 +118,19 @@ REF and SPF fields carry a leading 1-byte length indicator, which is authoritati
 
 Affected records are counted: `jASTERIX::numREFErrors()` / `numSPFErrors()` after decoding, and `num_ref_errors` / `num_spf_errors` keys in the `analyzeFile()`/`analyzeData()` result (next to `num_errors`, which stays 0 for these records). In flat mode the field's leaf columns are null for such records; the hex string and flag are not part of the columnar output.
 
+### Analysis result
+
+`analyzeFile()` / `analyzeData()` / `analyzePCAPFile()` (CLI `--analyze`, the COMPASS import probe) run a flat decode and build the statistics from the columns. The result is keyed by data source (`"SAC/SIC"`, or `unknown` when a record has no I0xx/010), then by category. Each category holds `count` (records) and one entry per item path with `count` (records with a value) and, for scalar values, `min` and `max`:
+
+```json
+"50/247": { "62": { "count": 10697, "010.SAC": { "count": 10697, "min": 50, "max": 50 },
+                    "SPF.REP": { "count": 10697, "min": 1, "max": 3 },
+                    "SPF.Target Report Identifiers.TRI": { "count": 10697 } } },
+"num_frames": 1000, "num_records": 10702, "num_errors": 0, "num_ref_errors": 0, "num_spf_errors": 0
+```
+
+The item paths are the flat column names (`<item>.<field>`, repetitive leaves with their full path, `<item>.REP` for the repetition count). Cells that hold arrays (repetitive and extendable items) are counted, without bounds. Record bookkeeping (`FSPEC`, `index`, `length`) and the flat side columns are not items. CAT001 records without I001/010 are attributed to the propagated SAC/SIC, and the reconstructed `140.Time-of-Day` appears as an item. The counters describe the call, not the instance lifetime. The analysis stops after the first chunk with decode errors, and honors `record_limit` like a decode. Covered by `test_analysis.cpp`, and the release check compares the analysis of every recording to its flat decode.
+
 ### Skipped categories in the analysis result
 
 Data blocks of categories that were not decoded are counted per category and reported in the `analyzeFile()` / `analyzeData()` result (and in `--analyze`) under the `skipped_categories` key. `analyzePCAPFile()` returns one sub-result per network stream, each carrying its own `skipped_categories`.

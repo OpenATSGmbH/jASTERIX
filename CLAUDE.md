@@ -35,6 +35,8 @@ cmake --build build -j$(nproc)
 
 Output goes to `build/bin/` (executables) and `build/lib/` (libraries).
 
+`scripts/make.sh` configures (Ninja, install prefix `/usr`), builds and runs `sudo cmake --install build`. `--clean` removes `build/` first, `--test` runs `test_categories` before installing.
+
 **C++ standard**: C++17 (`-std=c++17`). The AppImage is built with GCC 8.3 on Debian 10, so keep to what that compiler supports. Structured bindings, `std::optional`, `std::variant`, `if constexpr`, `std::string_view`, and `std::any` are available.
 
 **Compiler flags** (set in `CMakeLists.txt`, selected by the presence of `/.dockerenv`):

@@ -34,6 +34,9 @@
 #include <chrono>
 #include <cmath>
 #include <ctime>
+#include <functional>
+#include <limits>
+#include <set>
 #include <exception>
 #include <fstream>
 #include <iostream>
@@ -212,185 +215,14 @@ std::shared_ptr<Category> jASTERIX::category(unsigned int cat)
     return category_definitions_.at(cat);
 }
 
+
 std::unique_ptr<nlohmann::json> jASTERIX::analyzeFile(
     const std::string& filename, const std::string& framing_str, unsigned int record_limit)
 {
-    size_t file_size = openFile(filename);
+    loginf << "jASTERIX: analyzeFile: filename '" << filename << "' framing '" << framing_str
+           << "' record_limit " << record_limit << logendl;
 
-    const char* data = file_.data();
-
-    nlohmann::json framing_definition = loadFramingDefinition(framing_str);
-
-            resetChunkState();
-
-    // create ASTERIX parser
-    ASTERIXParser asterix_parser(data_block_definition_, category_definitions_, debug_);
-
-            // create frame parser
-    bool debug_framing = debug_ && !debug_exclude_framing_;
-    FrameParser frame_parser(framing_definition, asterix_parser, debug_framing);
-
-    nlohmann::json json_header;
-
-    size_t index{0};
-
-            // parsing header
-    if (frame_parser.hasFileHeaderItems())
-        index = frame_parser.parseHeader(data, 0, file_size, json_header, debug_framing);
-
-    clearFlatColumns();  // analysis is always structured
-
-    record_limit_base_ = num_records_;
-    size_t frames_base = num_frames_;
-
-    if (debug_)
-        loginf << "jasterix: analyze creating frame parser task index " << index << " header '"
-               << json_header.dump(4) << "'" << logendl;
-
-    stop_decoding_ = false;
-    std::unique_ptr<nlohmann::json> analysis_result {new nlohmann::json()};
-    // ensure required keys always exist, even if the producer task fails before
-    // any chunk is decoded
-    (*analysis_result)["num_frames"]  = 0;
-    (*analysis_result)["num_records"] = 0;
-    (*analysis_result)["num_errors"]  = 0;
-    (*analysis_result)["num_ref_errors"] = 0;
-    (*analysis_result)["num_spf_errors"] = 0;
-
-    // the counters accumulate over the instance lifetime, the result reports this call
-    size_t errors_base = num_errors_;
-    size_t ref_errors_base = num_ref_errors_;
-    size_t spf_errors_base = num_spf_errors_;
-
-    std::unique_ptr<FrameParserTask> task {
-                                          new FrameParserTask(*this, frame_parser, json_header, data, index, file_size, debug_framing)};
-    task->start();
-
-    if (debug_)
-    {
-        while (!task->done())
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
-
-    std::unique_ptr<nlohmann::json> data_chunk;
-
-    size_t num_callback_frames;
-    std::pair<size_t, size_t> dec_ret{0, 0};
-
-    while (!stop_decoding_)
-    {
-        traced_assert(!data_chunk);
-
-        {
-            std::unique_lock<std::mutex> lock(data_chunks_mutex_);
-            data_chunks_cv_.wait(lock, [this] {
-                return !data_chunks_.empty() || data_processing_done_ || stop_decoding_;
-            });
-
-            if (stop_decoding_ || data_chunks_.empty())
-                break;
-
-            //loginf << "jASTERIX: analyze frame chunks " << data_chunks_.size() << logendl;
-            //  mostly 2. mostly.
-
-            data_chunk = std::move(data_chunks_.front().first);
-            data_chunks_.pop_front();
-        }
-        data_chunks_cv_.notify_one();  // wake producer from backpressure
-
-        if (debug_)
-            loginf << "jASTERIX: analyze decoding frames" << logendl;
-
-        num_callback_frames = data_chunk->at("frames").size();
-        num_frames_ += num_callback_frames;
-
-        (*analysis_result)["num_frames"] = num_frames_ - frames_base;
-
-        try
-        {
-            dec_ret = frame_parser.decodeFrames(data, file_size, data_chunk.get(), debug_);
-            num_records_ += dec_ret.first;
-            num_errors_ += dec_ret.second;
-            num_ref_errors_ = ref_errors_base + asterix_parser.numREFErrors();
-            num_spf_errors_ = spf_errors_base + asterix_parser.numSPFErrors();
-
-            (*analysis_result)["num_records"] = num_records_ - record_limit_base_;
-            (*analysis_result)["num_errors"] = num_errors_ - errors_base;
-            (*analysis_result)["num_ref_errors"] = num_ref_errors_ - ref_errors_base;
-            (*analysis_result)["num_spf_errors"] = num_spf_errors_ - spf_errors_base;
-
-            if (debug_)
-                loginf << "jASTERIX analyze " << num_frames_ << " frames, " << num_records_
-                       << " records " << num_errors_ << " errors " << logendl;
-
-            if (num_errors_)
-            {
-                loginf << "jASTERIX analyze resulted in " << num_errors_ << " errors " << logendl;
-
-                forceStopTask(*task);
-
-                break;
-            }
-
-            analyzeChunk(data_chunk, true);
-
-            data_chunk = nullptr;
-
-            // an explicit limit counts the records of this call as well, the counter itself
-            // accumulates over the instance lifetime
-            if (record_limit > 0 ? num_records_ - record_limit_base_ >= record_limit
-                                 : recordLimitReached())
-            {
-                if (debug_)
-                    loginf << "jASTERIX analyze hit record limit" << logendl;
-
-                forceStopTask(*task);
-
-                break;
-            }
-        }
-        catch (std::exception& e)
-        {
-            logerr << "jASTERIX caught exception '" << e.what() << "', breaking" << logendl;
-
-            forceStopTask(*task);
-
-            throw (e);  // rethrow
-        }
-    }
-
-    if (task->errorOcurred())
-    {
-        unsigned int num_errors {0};
-        if (analysis_result->contains("num_errors"))
-            num_errors = analysis_result->at("num_errors");
-        ++num_errors;
-        (*analysis_result)["num_errors"] = num_errors;
-        (*analysis_result)["num_frame_errors"] = 1;
-    }
-
-    if (!task->done()) // aborted
-        forceStopTask(*task);
-
-    if (debug_)
-        loginf << "jASTERIX analyze file done" << logendl;
-
-    file_.close();
-
-            //(*analysis_result)["sensor_counts"] = sensor_counts_;
-
-            //(*analysis_result) = data_item_analysis_;
-
-    for (const auto& ana_it : data_item_analysis_) // add to preserve num counters
-        (*analysis_result)[ana_it.first] = ana_it.second;
-
-    addSkippedCategoriesAnalysis(*analysis_result);
-
-            //sensor_counts_.clear();
-    data_item_analysis_.clear();
-    skipped_category_counts_.clear();
-
-    return analysis_result;
+    return runAnalysis([&]() { decodeFile(filename, framing_str, nullptr, true); }, record_limit);
 }
 
 std::unique_ptr<nlohmann::json> jASTERIX::analyzeFile(const std::string& filename, unsigned int record_limit)
@@ -401,7 +233,11 @@ std::unique_ptr<nlohmann::json> jASTERIX::analyzeFile(const std::string& filenam
 
     const char* data = file_.data();
 
-    return analyzeData(data, file_size, record_limit);
+    std::unique_ptr<nlohmann::json> analysis_result = analyzeData(data, file_size, record_limit);
+
+    file_.close();
+
+    return analysis_result;
 }
 
 std::string jASTERIX::analyzeFileCSV(const std::string& filename, const std::string& framing_str,
@@ -431,10 +267,7 @@ std::string jASTERIX::analyzeFileCSV(const std::string& filename, const std::str
 
 //    ss << "data items" << endl;
 
-    std::map<std::string, std::map<std::string, std::map<std::string, nlohmann::json>>> data_item_analysis =
-        *analysis_result;
-
-    ss << toCSV(data_item_analysis);
+    ss << toCSV(*analysis_result);
 
     return ss.str();
 }
@@ -465,11 +298,7 @@ std::string jASTERIX::analyzeFileCSV(const std::string& filename, unsigned int r
 
     //loginf << "jASTERIX: analyzeFileCSV: analysis_result '" << analysis_result->dump(2) << "'";
 
-    std::map<std::string, std::map<std::string, std::map<std::string, nlohmann::json>>> data_item_analysis =
-        *analysis_result;
-
-    //loginf << "jASTERIX: analyzeFileCSV: toCSV";
-    ss << toCSV(data_item_analysis);
+    ss << toCSV(*analysis_result);
 
     //loginf << "jASTERIX: analyzeFileCSV: toCSV '" << ss.str() << "'";
 
@@ -571,10 +400,7 @@ std::string jASTERIX::analyzePCAPFileCSV(const std::string& filename, unsigned i
         stream_result.erase("first_time_epoch");
         stream_result.erase("last_time_epoch");
 
-        std::map<std::string, std::map<std::string, std::map<std::string, nlohmann::json>>>
-            data_item_analysis = stream_result;
-
-        ss << toCSV(data_item_analysis);
+        ss << toCSV(stream_result);
         ss << endl;
     }
 
@@ -582,178 +408,11 @@ std::string jASTERIX::analyzePCAPFileCSV(const std::string& filename, unsigned i
 }
 
 
+
 std::unique_ptr<nlohmann::json> jASTERIX::analyzeData(const char* data, unsigned int total_size,
                                                       unsigned int record_limit)
 {
-    record_limit_base_ = num_records_;
-
-    clearFlatColumns();  // analysis is always structured
-
-    resetChunkState();
-
-    // create ASTERIX parser
-    ASTERIXParser asterix_parser(data_block_definition_, category_definitions_, debug_);
-
-    if (debug_)
-        loginf << "jASTERIX: finding data blocks" << logendl;
-
-    size_t index{0};
-
-    std::unique_ptr<DataBlockFinderTask> task {
-                                              new DataBlockFinderTask(*this, asterix_parser, data, index, total_size, debug_)};
-
-    task->start();
-
-    if (debug_)
-        while (!task->done())
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-
-    std::unique_ptr<nlohmann::json> data_block_chunk;
-    std::unique_ptr<nlohmann::json> analysis_result {new nlohmann::json()};
-    // ensure required keys always exist, even if the producer task fails before
-    // any chunk is decoded
-    (*analysis_result)["num_records"] = 0;
-    (*analysis_result)["num_errors"]  = 0;
-    (*analysis_result)["num_ref_errors"] = 0;
-    (*analysis_result)["num_spf_errors"] = 0;
-
-    // the counters accumulate over the instance lifetime, the result reports this call
-    size_t errors_base = num_errors_;
-    size_t ref_errors_base = num_ref_errors_;
-    size_t spf_errors_base = num_spf_errors_;
-
-    std::pair<size_t, size_t> dec_ret{0, 0};
-
-    stop_decoding_ = false;
-
-    while (!stop_decoding_)
-    {
-        // loginf << "jasterix: task done " << data_block_processing_done_ << " empty " <<
-        // data_block_chunks_.empty()
-        // << logendl;
-
-        traced_assert(!data_block_chunk);
-
-        {
-            std::unique_lock<std::mutex> lock(data_block_chunks_mutex_);
-            data_block_chunks_cv_.wait(lock, [this] {
-                return !data_block_chunks_.empty() || data_block_processing_done_ || stop_decoding_;
-            });
-
-            if (stop_decoding_ || data_block_chunks_.empty())
-                break;
-
-            data_block_chunk = std::move(data_block_chunks_.front().first);
-            data_block_chunks_.pop_front();
-        }
-        data_block_chunks_cv_.notify_one();  // wake producer from backpressure
-
-        if (debug_)
-            loginf << "jasterix: analyze decoding data block" << logendl;
-
-        try
-        {
-            if (!data_block_chunk->contains("data_blocks"))
-                throw runtime_error("jasterix data blocks not found");
-
-            if (!data_block_chunk->at("data_blocks").is_array())
-                throw runtime_error("jasterix data blocks is not an array");
-
-            dec_ret =
-                asterix_parser.decodeDataBlocks(data, total_size, data_block_chunk->at("data_blocks"), debug_);
-
-            //            loginf << "jASTERIX: analyzeFile: decode data block done, num_records " << dec_ret.first
-            //                   << " errors " << dec_ret.second << logendl;
-
-            num_records_ += dec_ret.first;
-            num_errors_ += dec_ret.second;
-            num_ref_errors_ = ref_errors_base + asterix_parser.numREFErrors();
-            num_spf_errors_ = spf_errors_base + asterix_parser.numSPFErrors();
-
-            (*analysis_result)["num_records"] = num_records_ - record_limit_base_;
-            (*analysis_result)["num_errors"] = num_errors_ - errors_base;
-            (*analysis_result)["num_ref_errors"] = num_ref_errors_ - ref_errors_base;
-            (*analysis_result)["num_spf_errors"] = num_spf_errors_ - spf_errors_base;
-
-            if (num_errors_)
-            {
-                loginf << "jASTERIX analyze resulted in " << num_errors_ << " errors " << logendl;
-
-                forceStopTask(*task);
-
-                break;
-            }
-
-            analyzeChunk(data_block_chunk, false);
-
-            data_block_chunk = nullptr;
-
-            // an explicit limit counts the records of this call as well, the counter itself
-            // accumulates over the instance lifetime
-            if (record_limit > 0 ? num_records_ - record_limit_base_ >= record_limit
-                                 : recordLimitReached())
-            {
-                if (debug_)
-                    loginf << "jASTERIX analyze hit record limit" << logendl;
-
-                forceStopTask(*task);
-
-                break;
-            }
-        }
-        catch (std::exception& e)
-        {
-            logerr << "jASTERIX caught exception'" << e.what() << "', breaking" << logendl;
-
-            forceStopTask(*task);
-
-            data_item_analysis_.clear();
-            skipped_category_counts_.clear();
-
-            throw;
-        }
-    }
-
-            //loginf << "jASTERIX analyze done with while" << logendl;
-
-    if (task->error())
-    {
-        unsigned int num_errors {0};
-
-        if (analysis_result->contains("num_errors"))
-            num_errors = analysis_result->at("num_errors");
-
-        ++num_errors;
-
-        (*analysis_result)["num_errors"] = num_errors;
-    }
-
-            //loginf << "jASTERIX analyze waiting on task force stop" << logendl;
-
-    if (!task->done()) // aborted
-        forceStopTask(*task);
-
-    if (debug_)
-        loginf << "jASTERIX decode file done" << logendl;
-
-    file_.close();
-
-            //(*analysis_result)["sensor_counts"] = sensor_counts_;
-
-            //if (csv)
-
-    //(*analysis_result) = data_item_analysis_;
-
-    for (const auto& ana_it : data_item_analysis_) // add to preserve num counters
-        (*analysis_result)[ana_it.first] = ana_it.second;
-
-    addSkippedCategoriesAnalysis(*analysis_result);
-
-            //sensor_counts_.clear();
-    data_item_analysis_.clear();
-    skipped_category_counts_.clear();
-
-    return analysis_result;
+    return runAnalysis([&]() { decodeData(data, total_size, nullptr, true, true); }, record_limit);
 }
 
 std::string jASTERIX::analyzeDataCSV(const char* data, unsigned int total_size,
@@ -783,10 +442,63 @@ std::string jASTERIX::analyzeDataCSV(const char* data, unsigned int total_size,
 
 //    ss << "data items" << endl;
 
-    std::map<std::string, std::map<std::string, std::map<std::string, nlohmann::json>>> data_item_analysis =
-        *analysis_result;
+    ss << toCSV(*analysis_result);
 
-    ss << toCSV(data_item_analysis);
+    return ss.str();
+}
+
+std::string jASTERIX::toCSV(const nlohmann::json& analysis_result)
+{
+    // sac/sic -> cat -> key -> count/min/max, the counters and skipped categories are not listed
+
+    std::stringstream ss;
+
+    ss << "sac/sic;name;count;min;max" << endl;
+
+    string cat_str;
+
+    for (const auto& sensor_it : analysis_result.items())
+    {
+        if (!sensor_it.value().is_object() || sensor_it.key() == "skipped_categories")
+            continue;
+
+        for (const auto& cat_it : sensor_it.value().items())
+        {
+            if (!cat_it.value().is_object())
+                continue;
+
+            std::ostringstream oss;
+            oss << std::setw(3) << std::setfill('0') << cat_it.key();
+            cat_str = oss.str();
+
+            ss << sensor_it.key() << " CAT" << cat_str << ":" << endl;
+
+            for (const auto& di_info_it : cat_it.value().items()) // key -> count/min/max
+            {
+                if (di_info_it.value().is_primitive())
+                {
+                    ss << sensor_it.key() << ";count;" << di_info_it.value() << ";;" << endl;
+
+                    continue;
+                }
+
+                ss << sensor_it.key() << ";" << di_info_it.key() << ";" << di_info_it.value().at("count");
+                ss << ";";
+
+                if (di_info_it.value().contains("min"))
+                    ss << di_info_it.value().at("min");
+
+                ss << ";";
+
+                if (di_info_it.value().contains("max"))
+                    ss << di_info_it.value().at("max");
+
+                ss << endl;
+            }
+
+            ss << endl << endl;
+        }
+    }
 
     return ss.str();
 }
@@ -1005,11 +717,16 @@ void jASTERIX::decodeFile(
             {
                 auto flat_chunk = moveFlatData();
 
-                if (print_)
-                    std::cout << flat_chunk->dump(print_dump_indent) << std::endl;
+                if (analysis_mode_)
+                    analyzeFlatChunk(*flat_chunk, *data_chunk, true);
+                else
+                {
+                    if (print_)
+                        std::cout << flat_chunk->dump(print_dump_indent) << std::endl;
 
-                if (data_callback)
-                    data_callback(std::move(flat_chunk), chunk_bytes_read, num_callback_frames, dec_ret.first, dec_ret.second);
+                    if (data_callback)
+                        data_callback(std::move(flat_chunk), chunk_bytes_read, num_callback_frames, dec_ret.first, dec_ret.second);
+                }
 
                 data_chunk = nullptr;
             }
@@ -1032,10 +749,10 @@ void jASTERIX::decodeFile(
                 break;
             }
 
-            if (recordLimitReached())
+            if (stopAfterChunk())
             {
                 if (debug_)
-                    loginf << "jASTERIX processing hit record limit" << logendl;
+                    loginf << "jASTERIX processing stops after chunk" << logendl;
 
                 break;
             }
@@ -1173,11 +890,16 @@ void jASTERIX::decodeFile(
             {
                 auto flat_chunk = moveFlatData();
 
-                if (print_)
-                    std::cout << flat_chunk->dump(print_dump_indent) << std::endl;
+                if (analysis_mode_)
+                    analyzeFlatChunk(*flat_chunk, *data_block_chunk, false);
+                else
+                {
+                    if (print_)
+                        std::cout << flat_chunk->dump(print_dump_indent) << std::endl;
 
-                if (data_callback)
-                    data_callback(std::move(flat_chunk), chunk_bytes_read, 0, dec_ret.first, dec_ret.second);
+                    if (data_callback)
+                        data_callback(std::move(flat_chunk), chunk_bytes_read, 0, dec_ret.first, dec_ret.second);
+                }
 
                 data_block_chunk = nullptr;
             }
@@ -1192,10 +914,10 @@ void jASTERIX::decodeFile(
                     data_block_chunk = nullptr;
             }
 
-            if (recordLimitReached())
+            if (stopAfterChunk())
             {
                 if (debug_)
-                    loginf << "jASTERIX processing hit record limit" << logendl;
+                    loginf << "jASTERIX processing stops after chunk" << logendl;
 
                 break;
             }
@@ -1366,11 +1088,16 @@ void jASTERIX::decodeData(const char* data,
             {
                 auto flat_chunk = moveFlatData();
 
-                if (print_)
-                    std::cout << flat_chunk->dump(print_dump_indent) << std::endl;
+                if (analysis_mode_)
+                    analyzeFlatChunk(*flat_chunk, *data_block_chunk, false);
+                else
+                {
+                    if (print_)
+                        std::cout << flat_chunk->dump(print_dump_indent) << std::endl;
 
-                if (data_callback)
-                    data_callback(std::move(flat_chunk), chunk_bytes_read, 0, dec_ret.first, dec_ret.second);
+                    if (data_callback)
+                        data_callback(std::move(flat_chunk), chunk_bytes_read, 0, dec_ret.first, dec_ret.second);
+                }
 
                 data_block_chunk = nullptr;
             }
@@ -1385,10 +1112,10 @@ void jASTERIX::decodeData(const char* data,
                     data_block_chunk = nullptr;
             }
 
-            if (recordLimitReached())
+            if (stopAfterChunk())
             {
                 if (debug_)
-                    loginf << "jASTERIX processing hit record limit" << logendl;
+                    loginf << "jASTERIX processing stops after chunk" << logendl;
 
                 break;
             }
@@ -1512,8 +1239,10 @@ size_t jASTERIX::numRecords() const { return num_records_; }
 
 bool jASTERIX::recordLimitReached() const
 {
-    return record_limit > 0
-           && num_records_ - record_limit_base_ >= static_cast<size_t>(record_limit);
+    size_t limit = call_record_limit_ > 0 ? call_record_limit_
+                                          : (record_limit > 0 ? static_cast<size_t>(record_limit) : 0);
+
+    return limit > 0 && num_records_ - record_limit_base_ >= limit;
 }
 
 void jASTERIX::addDataBlockChunk(std::unique_ptr<nlohmann::json> data_block_chunk, size_t bytes_read,
@@ -1646,106 +1375,225 @@ nlohmann::json jASTERIX::loadFramingDefinition(const std::string& framing_str)
     }
 }
 
-void jASTERIX::analyzeChunk(const std::unique_ptr<nlohmann::json>& data_chunk, bool framing)
+
+
+std::unique_ptr<nlohmann::json> jASTERIX::runAnalysis(const std::function<void()>& decode,
+                                                      unsigned int record_limit)
 {
-    unsigned int category;
+    analysis_.clear();
+    skipped_category_counts_.clear();
+
+    // the decode counters accumulate over the instance lifetime, the result reports this call
+    size_t frames_base = num_frames_;
+    size_t records_base = num_records_;
+    size_t ref_errors_base = num_ref_errors_;
+    size_t spf_errors_base = num_spf_errors_;
+
+    analysis_mode_ = true;
+    analysis_errors_base_ = num_errors_;
+    call_record_limit_ = record_limit;
+
+    try
+    {
+        decode();
+    }
+    catch (...)
+    {
+        analysis_mode_ = false;
+        call_record_limit_ = 0;
+        analysis_.clear();
+        skipped_category_counts_.clear();
+        throw;
+    }
+
+    analysis_mode_ = false;
+    call_record_limit_ = 0;
+
+    std::unique_ptr<nlohmann::json> analysis_result {new nlohmann::json()};
+    (*analysis_result)["num_frames"] = num_frames_ - frames_base;
+    (*analysis_result)["num_records"] = num_records_ - records_base;
+    (*analysis_result)["num_errors"] = num_errors_ - analysis_errors_base_;
+    (*analysis_result)["num_ref_errors"] = num_ref_errors_ - ref_errors_base;
+    (*analysis_result)["num_spf_errors"] = num_spf_errors_ - spf_errors_base;
+
+    addAnalysisResult(*analysis_result);
+    addSkippedCategoriesAnalysis(*analysis_result);
+
+    analysis_.clear();
+    skipped_category_counts_.clear();
+
+    return analysis_result;
+}
+
+void jASTERIX::analyzeFlatChunk(const nlohmann::json& flat_chunk, const nlohmann::json& chunk,
+                                bool framing)
+{
+    // data blocks of categories that were not decoded
+    auto count_skipped = [this](const nlohmann::json& data_blocks) {
+        if (!data_blocks.is_array())
+            return;
+
+        for (const nlohmann::json& data_block : data_blocks)
+            if (data_block.contains("category"))
+                countSkippedDataBlock(data_block);
+    };
 
     if (framing)
     {
-        if (!data_chunk->contains("frames"))
-            return;
+        if (chunk.contains("frames"))
+            for (const nlohmann::json& frame : chunk.at("frames"))
+                if (frame.contains("content") && frame.at("content").contains("data_blocks"))
+                    count_skipped(frame.at("content").at("data_blocks"));
+    }
+    else if (chunk.contains("data_blocks"))
+        count_skipped(chunk.at("data_blocks"));
 
-        traced_assert(data_chunk->contains("frames"));
+    // side columns are not data items
+    static const std::set<std::string> side_columns{"artas_md5", "record_data", "recording_time",
+                                                    "recording_day", "recording_date"};
 
-        for (const auto& frame : data_chunk->at("frames"))
+    const size_t no_sensor = std::numeric_limits<size_t>::max();
+
+    for (const auto& cat_it : flat_chunk.items())
+    {
+        const std::string& cat_str = cat_it.key();
+        const nlohmann::json& columns = cat_it.value();
+
+        if (!columns.is_object())
+            continue;
+
+        // records of this category in the chunk: the longest column
+        size_t num_records = 0;
+        for (const auto& column_it : columns.items())
+            if (column_it.value().is_array())
+                num_records = std::max(num_records, column_it.value().size());
+
+        if (!num_records)
+            continue;
+
+        // data source of every record from the SAC/SIC columns, as index into a small table
+        std::vector<std::string> sensors;
+        std::vector<size_t> sensor_of_record(num_records, 0);
         {
-            if (!frame.contains("content") || !frame.at("content").contains("data_blocks"))
-                continue;
+            const nlohmann::json* sac_col = columns.contains("010.SAC") ? &columns.at("010.SAC") : nullptr;
+            const nlohmann::json* sic_col = columns.contains("010.SIC") ? &columns.at("010.SIC") : nullptr;
 
-            traced_assert(frame.contains("content"));
-            traced_assert(frame.at("content").contains("data_blocks"));
+            std::map<std::pair<long long, long long>, size_t> sensor_index;
+            size_t unknown_index = no_sensor;
 
-            for (const auto& data_block : frame.at("content").at("data_blocks"))
+            for (size_t rec = 0; rec < num_records; ++rec)
             {
-                traced_assert(data_block.contains("category"));
+                bool known = sac_col && sic_col && rec < sac_col->size() && rec < sic_col->size()
+                             && (*sac_col)[rec].is_number() && (*sic_col)[rec].is_number();
 
-                if (!data_block.contains("content") || !data_block.at("content").contains("records"))
+                if (!known)
                 {
-                    countSkippedDataBlock(data_block);
+                    if (unknown_index == no_sensor)
+                    {
+                        unknown_index = sensors.size();
+                        sensors.push_back("unknown");
+                    }
+                    sensor_of_record[rec] = unknown_index;
                     continue;
                 }
 
-                traced_assert(data_block.contains("content"));
-                traced_assert(data_block.at("content").contains("records"));
-
-                category = data_block.at("category");
-
-                for (const auto& record : data_block.at("content").at("records"))
+                std::pair<long long, long long> key{(*sac_col)[rec].get<long long>(),
+                                                    (*sic_col)[rec].get<long long>()};
+                auto it = sensor_index.find(key);
+                if (it == sensor_index.end())
                 {
-                    analyzeRecord (category, record);
+                    it = sensor_index.emplace(key, sensors.size()).first;
+                    sensors.push_back(std::to_string(key.first) + "/" + std::to_string(key.second));
                 }
+                sensor_of_record[rec] = it->second;
             }
         }
-    }
-    else // no framing
-    {
-        if (!data_chunk->contains("data_blocks"))
-            return;
 
-        traced_assert(data_chunk->contains("data_blocks"));
+        // category statistics per data source, resolved once per chunk
+        std::vector<CategoryAnalysis*> cat_stats(sensors.size());
+        for (size_t cnt = 0; cnt < sensors.size(); ++cnt)
+            cat_stats[cnt] = &analysis_[sensors[cnt]][cat_str];
 
-        for (const auto& data_block : data_chunk->at("data_blocks"))
+        for (size_t rec = 0; rec < num_records; ++rec)
+            ++cat_stats[sensor_of_record[rec]]->count;
+
+        for (const auto& column_it : columns.items())
         {
-            traced_assert(data_block.contains("category"));
+            const std::string& path = column_it.key();
+            const nlohmann::json& column = column_it.value();
 
-            if (!data_block.contains("content") || !data_block.at("content").contains("records"))
-            {
-                countSkippedDataBlock(data_block);
+            if (!column.is_array() || side_columns.count(path))
                 continue;
-            }
 
-            traced_assert(data_block.contains("content"));
-            traced_assert(data_block.at("content").contains("records"));
+            // item statistics per data source, resolved on first use
+            std::vector<ItemAnalysis*> item_stats(sensors.size(), nullptr);
 
-            category = data_block.at("category");
-
-            for (const auto& record : data_block.at("content").at("records"))
+            size_t num_cells = std::min(num_records, column.size());
+            for (size_t rec = 0; rec < num_cells; ++rec)
             {
-                analyzeRecord (category, record);
+                const nlohmann::json& cell = column[rec];
+                if (cell.is_null())
+                    continue;
+
+                ItemAnalysis*& stats = item_stats[sensor_of_record[rec]];
+                if (!stats)
+                    stats = &cat_stats[sensor_of_record[rec]]->items[path];
+
+                ++stats->count;
+
+                // bounds for scalar values, arrays (repetitive and extendable items) are counted
+                if (cell.is_primitive())
+                {
+                    if (!stats->has_bounds)
+                    {
+                        stats->min = cell;
+                        stats->max = cell;
+                        stats->has_bounds = true;
+                    }
+                    else
+                    {
+                        if (cell < stats->min)
+                            stats->min = cell;
+                        if (cell > stats->max)
+                            stats->max = cell;
+                    }
+                }
             }
         }
     }
 }
 
-void jASTERIX::analyzeRecord(unsigned int category, const nlohmann::json& record)
+void jASTERIX::addAnalysisResult(nlohmann::json& analysis_result)
 {
-    string cat_str = to_string(category);
-
-            // sensor
-
-    string sensor_id;
-
-    if (record.contains("010") && record.at("010").count("SAC") && record.at("010").count("SIC"))
-        sensor_id = to_string(record.at("010").at("SAC")) + "/" + to_string(record.at("010").at("SIC"));
-    else
-        sensor_id = "unknown";
-
-            //data_item_analysis_[sensor_id][cat_str] += 1;
-
-            // data item analysis
-    if (data_item_analysis_.count(sensor_id)
-        && data_item_analysis_.at(sensor_id).count(cat_str)
-        && data_item_analysis_.at(sensor_id).at(cat_str).count("count"))
+    for (const auto& sensor_it : analysis_)
     {
-        unsigned int count = data_item_analysis_.at(sensor_id).at(cat_str).at("count");
-        data_item_analysis_[sensor_id][cat_str]["count"] = count + 1;
+        nlohmann::json& sensor_json = analysis_result[sensor_it.first];
+
+        for (const auto& cat_it : sensor_it.second)
+        {
+            nlohmann::json& cat_json = sensor_json[cat_it.first];
+            cat_json["count"] = cat_it.second.count;
+
+            for (const auto& item_it : cat_it.second.items)
+            {
+                nlohmann::json& item_json = cat_json[item_it.first];
+                item_json["count"] = item_it.second.count;
+
+                if (item_it.second.has_bounds)
+                {
+                    item_json["min"] = item_it.second.min;
+                    item_json["max"] = item_it.second.max;
+                }
+            }
+        }
     }
-    else
-        data_item_analysis_[sensor_id][cat_str]["count"] = 1;
+}
 
-    traced_assert(record.is_object());
-
-    addJSONAnalysis(sensor_id, cat_str, "", record);
+bool jASTERIX::stopAfterChunk() const
+{
+    // an analysis stops after the first chunk with decode errors, as the record based
+    // analysis did
+    return recordLimitReached() || (analysis_mode_ && num_errors_ > analysis_errors_base_);
 }
 
 void jASTERIX::countSkippedDataBlock(const nlohmann::json& data_block)
@@ -1787,67 +1635,6 @@ void jASTERIX::addSkippedCategoriesAnalysis(nlohmann::json& analysis_result)
     }
 }
 
-void jASTERIX::addJSONAnalysis(const std::string& sensor_id, const std::string& cat_str,
-                               const std::string& prefix, const nlohmann::json& item)
-{
-    traced_assert(item.is_object());
-
-    string sub_prefix;
-    bool is_primitive;
-
-    for (const auto& item_it : item.items())
-    {
-        if (prefix.size())
-            sub_prefix = prefix+"."+item_it.key();
-        else
-            sub_prefix = item_it.key();
-
-        if (item_it.value().is_object())
-            addJSONAnalysis(sensor_id, cat_str, sub_prefix, item_it.value());
-        else
-        {
-            is_primitive = item_it.value().is_primitive();
-
-            // navigate to the inner entry using find() to avoid repeated lookups
-            auto sit = data_item_analysis_.find(sensor_id);
-            if (sit != data_item_analysis_.end())
-            {
-                auto cit = sit->second.find(cat_str);
-                if (cit != sit->second.end())
-                {
-                    auto pit = cit->second.find(sub_prefix);
-                    if (pit != cit->second.end())
-                    {
-                        auto& entry = pit->second;  // the count/min/max json object
-
-                        unsigned int count = entry.at("count");
-                        entry["count"] = count + 1;
-
-                        if (is_primitive)
-                        {
-                            entry["min"] = min(item_it.value(), entry.at("min"));
-                            entry["max"] = max(item_it.value(), entry.at("max"));
-                        }
-
-                        continue;  // done with this item
-                    }
-                }
-            }
-
-            // first occurrence - create entry via operator[]
-            {
-                auto& entry = data_item_analysis_[sensor_id][cat_str][sub_prefix];
-                entry["count"] = 1;
-
-                if (is_primitive)
-                {
-                    entry["min"] = item_it.value();
-                    entry["max"] = item_it.value();
-                }
-            }
-        }
-    }
-}
 
 void jASTERIX::clearDataChunks()
 {
@@ -1886,61 +1673,6 @@ void jASTERIX::resetChunkState()
 }
 
 
-std::string jASTERIX::toCSV (
-    const std::map<std::string, std::map<std::string, std::map<std::string, nlohmann::json>>>& data_item_analysis)
-{
-    // sac/sic -> cat -> key -> count/min/max
-
-    std::stringstream ss;
-
-    ss << "sac/sic;name;count;min;max" << endl;
-
-    string cat_str;
-
-    for (const auto& sensor_it : data_item_analysis)
-    {
-        loginf << sensor_it.first << sensor_it.second;
-
-        for (const auto& cat_it : sensor_it.second)
-        {
-            std::ostringstream oss;
-
-            // Format the number: width=3, fill='0'
-            oss << std::setw(3) << std::setfill('0') << cat_it.first;
-
-            cat_str = oss.str();
-
-            ss << sensor_it.first << " CAT" << cat_str << ":" << endl;
-
-            for (const auto& di_info_it : cat_it.second) // key -> count/min/max
-            {
-                if (di_info_it.second.is_primitive())
-                {
-                    ss << sensor_it.first << ";count;" << di_info_it.second << ";;" << endl;
-
-                    continue;
-                }
-
-                ss << sensor_it.first << ";" << di_info_it.first << ";" << di_info_it.second.at("count");
-                ss << ";";
-
-                if (di_info_it.second.contains("min"))
-                    ss << di_info_it.second.at("min");
-
-                ss << ";";
-
-                if (di_info_it.second.contains("max"))
-                    ss << di_info_it.second.at("max");
-
-                ss << endl;
-            }
-
-            ss << endl << endl;
-        }
-    }
-
-    return ss.str();
-}
 
 void jASTERIX::forceStopTask (DataBlockFinderTask& task)
 {

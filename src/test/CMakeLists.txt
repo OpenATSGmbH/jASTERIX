@@ -51,6 +51,7 @@ target_sources( test_categories
         "${CMAKE_CURRENT_LIST_DIR}/test_recording_time_pcap.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/test_record_limit.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/test_consecutive_calls.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/test_analysis.cpp"
 )
 
 target_sources( test_limits

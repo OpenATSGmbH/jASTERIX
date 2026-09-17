@@ -83,6 +83,8 @@ To install the built libary in the system, execute the following command in the 
 sudo make install
 ```
 
+Both steps in one go, with Ninja and install prefix `/usr`: `scripts/make.sh` (options `--clean`, `--test`).
+
 ## Usage
 
 ### Help

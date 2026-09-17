@@ -227,11 +227,28 @@ class jASTERIX
     std::vector<std::string> flat_data_block_keys_;
     std::map<unsigned int, std::map<std::string, nlohmann::json*>> flat_data_block_key_columns_; // cat -> key -> column
 
-    // sac/sic -> cat -> count
-    //std::map<std::string, std::map<std::string, unsigned int>> sensor_counts_;
+    // analysis statistics, filled from the flat columns per chunk: sensor "SAC/SIC" ->
+    // category -> record count and per item path (flat column name) count, min and max
+    struct ItemAnalysis
+    {
+        size_t count{0};
+        bool has_bounds{false};  // scalar values only, arrays are counted
+        nlohmann::json min;
+        nlohmann::json max;
+    };
+    struct CategoryAnalysis
+    {
+        size_t count{0};  // records
+        std::map<std::string, ItemAnalysis> items;
+    };
+    std::map<std::string, std::map<std::string, CategoryAnalysis>> analysis_;
 
-    // sac/sic -> cat -> key -> count/min/max
-    std::map<std::string, std::map<std::string, std::map<std::string, nlohmann::json>>> data_item_analysis_;
+    // set while an analyze call runs the flat decode: the chunk loops feed analyzeFlatChunk
+    // instead of print and callback, and stop after the first chunk with decode errors
+    bool analysis_mode_{false};
+    size_t analysis_errors_base_{0};
+    // record limit of the running analyze call, 0 for the global record_limit
+    unsigned int call_record_limit_{0};
 
     // cat -> {num data blocks, num bytes} of data blocks skipped during analysis
     // because the category could not be decoded (no definition or decoding disabled)
@@ -239,20 +256,24 @@ class jASTERIX
 
     size_t openFile (const std::string& filename); // returns file size
     nlohmann::json loadFramingDefinition(const std::string& framing_str);
-    void analyzeChunk(const std::unique_ptr<nlohmann::json>& data_chunk, bool framing);
-    void analyzeRecord(unsigned int category, const nlohmann::json& record);
+    // runs decode (a flat decode call) in analysis mode and builds the result
+    std::unique_ptr<nlohmann::json> runAnalysis(const std::function<void()>& decode,
+                                                unsigned int record_limit);
+    // statistics of one flat chunk, chunk holds the frames or data blocks it came from
+    void analyzeFlatChunk(const nlohmann::json& flat_chunk, const nlohmann::json& chunk,
+                          bool framing);
+    void addAnalysisResult(nlohmann::json& analysis_result);
     void countSkippedDataBlock(const nlohmann::json& data_block);
     void addSkippedCategoriesAnalysis(nlohmann::json& analysis_result);
-
-    void addJSONAnalysis(const std::string& sensor_id, const std::string& cat_str,
-                         const std::string& prefix, const nlohmann::json& item);
+    // record limit reached, or decode errors while analyzing
+    bool stopAfterChunk() const;
 
     void clearDataChunks();
     void clearDataBlockChunks();
     // clears leftover chunks and done flags of an earlier decode or analyze call
     void resetChunkState();
 
-    std::string toCSV (const std::map<std::string, std::map<std::string, std::map<std::string, nlohmann::json>>>& data_item_analysis);
+    std::string toCSV(const nlohmann::json& analysis_result);
 
     void setupFlatColumns();
     // leaves columnar mode: a flat call sets column targets into flat_data_ on the parser
