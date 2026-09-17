@@ -266,7 +266,7 @@ class jASTERIX
     // stamps each data block in the array with "pcap_time"/"pcap_time_epoch" and the
     // derived "recording_time" (seconds since UTC midnight) / "recording_date" (YYYYMMDD)
     // using pcap_packet_times_ and the data block's content index.
-    void stampPCAPTimes(nlohmann::json& data_blocks);
+    void stampPCAPTimes(nlohmann::json& data_blocks, bool with_time_string);
 };
 }  // namespace jASTERIX
 

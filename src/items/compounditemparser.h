@@ -24,6 +24,8 @@
 
 namespace jASTERIX
 {
+class OptionalItemParser;
+
 // decodes a field specification/availablity field (ending with extend bit), and list of items
 class CompoundItemParser : public ItemParserBase
 {
@@ -47,6 +49,9 @@ class CompoundItemParser : public ItemParserBase
     // std::string field_specification_name_;
     std::unique_ptr<ItemParserBase> field_specification_;
     std::vector<std::unique_ptr<ItemParserBase>> items_;
+    // items_ entries that are optional items, nullptr otherwise. cast once at construction,
+    // parseItem runs per record.
+    std::vector<OptionalItemParser*> optional_items_;
 };
 
 }  // namespace jASTERIX

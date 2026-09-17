@@ -854,17 +854,29 @@ std::unique_ptr<nlohmann::json> jASTERIX::moveFlatData()
         if (idx_it == flat_record_indices_.end() || idx_it->second == 0)
             continue;
 
+        size_t num_records = idx_it->second;
+
         nlohmann::json filtered_cat = nlohmann::json::object();
         for (auto it = cat_data.begin(); it != cat_data.end(); ++it)
         {
-            if (it.value().is_array() && it.value().empty())
+            nlohmann::json& column = it.value();
+
+            // never written in this chunk
+            if (!column.is_array() || column.empty())
                 continue;
-            filtered_cat[it.key()] = std::move(it.value());
+
+            filtered_cat[it.key()] = std::move(column);
+
+            // the parsers keep their pointers to this column, so it stays in place: the
+            // moved-from value becomes an empty array again, with room for a chunk of the
+            // size just delivered. No parser tree walk per chunk.
+            column = nlohmann::json::array();
+            column.get_ref<nlohmann::json::array_t&>().reserve(num_records);
         }
         (*result)[std::to_string(cat)] = std::move(filtered_cat);
-    }
 
-    setupFlatColumns();  // re-create fresh arrays and re-inject pointers
+        idx_it->second = 0;
+    }
 
     return result;
 }
@@ -1341,7 +1353,7 @@ void jASTERIX::decodeData(const char* data,
             // before the records are decoded, so flat mode copies recording_time /
             // recording_date per record and structured output carries them per data block
             if (pcap_packet_times_)
-                stampPCAPTimes(data_block_chunk->at("data_blocks"));
+                stampPCAPTimes(data_block_chunk->at("data_blocks"), !do_flat);
 
             dec_ret =
                 asterix_parser_instance.decodeDataBlocks(data, total_size, data_block_chunk->at("data_blocks"), debug_);
@@ -1398,7 +1410,7 @@ void jASTERIX::decodeData(const char* data,
         loginf << "jASTERIX decode data done" << logendl;
 }
 
-void jASTERIX::stampPCAPTimes(nlohmann::json& data_blocks)
+void jASTERIX::stampPCAPTimes(nlohmann::json& data_blocks, bool with_time_string)
 {
     if (!pcap_packet_times_ || pcap_packet_times_->empty() || !data_blocks.is_array())
         return;
@@ -1420,7 +1432,10 @@ void jASTERIX::stampPCAPTimes(nlohmann::json& data_blocks)
         double ts = (it == packet_times.begin()) ? packet_times.front().second
                                                   : std::prev(it)->second;
 
-        data_block["pcap_time"]       = PcapReader::timeToString(ts);
+        // the formatted string is only visible in structured output, flat output copies the
+        // recording keys below per record
+        if (with_time_string)
+            data_block["pcap_time"] = PcapReader::timeToString(ts);
         data_block["pcap_time_epoch"] = ts;
 
         // seconds since UTC midnight and the UTC date as YYYYMMDD, same keys as the framings

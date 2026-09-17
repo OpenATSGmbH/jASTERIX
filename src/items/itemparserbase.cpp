@@ -168,6 +168,7 @@ void ItemParserBase::clearColumnWriters()
     column_target_ = nullptr;
     record_index_ = nullptr;
     column_array_append_ = false;
+    scratch_capture_ = false;
     captured_columns_.clear();
     captured_record_index_ = nullptr;
 }

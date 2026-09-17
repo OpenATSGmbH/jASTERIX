@@ -88,6 +88,10 @@ public:
     // Inject column target for this parser (called by LeafSetupCallback).
     void setColumnTarget(nlohmann::json* column_array, size_t* record_index);
 
+    // Columnar mode: also write this leaf's value into the record scratch object. Only for
+    // the few leaves the parser logic reads back (SAC/SIC, Time of Day, conditional UAP key).
+    void setScratchCapture(bool capture) { scratch_capture_ = capture; }
+
     // Reset the captured columns' cells of the current record to null. Discards the
     // flat-mode output of a partial REF/SPF decode whose content did not match the
     // definition. Only effective on parsers that set up their column writers via
@@ -114,7 +118,8 @@ protected:
     {
         if (column_target_)
         {
-            target.emplace(name_, value);  // copy to scratch for conditional UAP
+            if (scratch_capture_)
+                target.emplace(name_, value);  // read back by the parser logic
             if (column_array_append_)
                 (*column_target_)[*record_index_].push_back(std::forward<T>(value));
             else
@@ -135,6 +140,7 @@ protected:
     size_t* record_index_ = nullptr;           // shared pointer to current record counter
     bool column_mode_ = false;                 // true when columnar mode is active (set on containers)
     bool column_array_append_ = false;         // leaf inside repetitive: append to array cell
+    bool scratch_capture_ = false;             // also copy the value into the record scratch
 
     // Columns of this parser's subtree captured via captureColumns(), plus the shared
     // record counter, for clearCapturedColumnCells()
