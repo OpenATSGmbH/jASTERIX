@@ -16,6 +16,8 @@
  */
 
 #include "record.h"
+
+#include <set>
 #include "extendablebitsitemparser.h"
 
 #include "logger.h"
@@ -189,7 +191,7 @@ size_t Record::parseItem(const char* data, size_t index, size_t size, size_t cur
     }
 
     auto* fspec_parser = static_cast<ExtendableBitsItemParser*>(field_specification_.get());
-    std::vector<bool> fspec_bits;
+    thread_local std::vector<bool> fspec_bits;  // reused per thread, cleared by parseItemBits
     parsed_bytes = fspec_parser->parseItemBits(data, index + parsed_bytes, size, parsed_bytes,
                                                total_size, fspec_bits, debug);
 
@@ -836,16 +838,45 @@ void Record::setupColumnWriters(const LeafSetupCallback& callback)
 {
     column_mode_ = true;
 
+    // In columnar mode the leaves write into their columns only. The few values the parser
+    // logic reads back from the record scratch object are captured there as well: SAC/SIC
+    // (CAT001 propagation, CAT002 time reference), Time of Day (CAT002 time reference) and
+    // the leaf of the conditional UAP key. Every other leaf skips the scratch copy.
+    std::set<std::string> scratch_names{"SAC", "SIC", "Time of Day"};
+    if (has_conditional_uap_ && !conditional_uaps_sub_keys_.empty())
+        scratch_names.insert(conditional_uaps_sub_keys_.back());
+
+    LeafSetupCallback capturing =
+        [&callback, &scratch_names](ItemParserBase* leaf, const std::string& long_name) -> nlohmann::json*
+    {
+        if (leaf)
+            leaf->setScratchCapture(scratch_names.count(leaf->name()) > 0);
+        return callback(leaf, long_name);
+    };
+
     // Walk all items (covers both base UAP and conditional UAP entries)
     for (auto& [name, item] : items_)
-        item->setupColumnWriters(callback);
+        item->setupColumnWriters(capturing);
 
     // REF/SPF parser trees are attached separately from the UAP items
     if (ref_)
-        ref_->setupColumnWriters(callback);
+        ref_->setupColumnWriters(capturing);
 
     if (spf_)
-        spf_->setupColumnWriters(callback);
+        spf_->setupColumnWriters(capturing);
+}
+
+void Record::clearColumnWriters()
+{
+    ItemParserBase::clearColumnWriters();
+    for (auto& [name, item] : items_)
+        item->clearColumnWriters();
+
+    if (ref_)
+        ref_->clearColumnWriters();
+
+    if (spf_)
+        spf_->clearColumnWriters();
 }
 
 // bool Record::compareKey (const nlohmann::json& container, const std::string& value)

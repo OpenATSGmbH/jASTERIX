@@ -63,7 +63,7 @@ A client AppImage is supplied, which can be executed (without setup effort) unde
 Download the AppImage and the jASTERIX definitions from the [Releases](https://github.com/hpuhr/jASTERIX/releases) page, and extract the definitions into a local folder, e.g. 'definitions'. Execute the following command to add the executable flag to the AppImage:
 
 ```
-chmod +x jASTERIX_client_v0.1.5-deb10.AppImage
+chmod +x jASTERIX_client_v0.1.6-deb10.AppImage
 ```
 
 After this, the jASTERIX client can be run from the console (see Usage section).
@@ -82,6 +82,8 @@ To install the built libary in the system, execute the following command in the 
 ```
 sudo make install
 ```
+
+Both steps in one go, with Ninja and install prefix `/usr`: `scripts/make.sh` (options `--clean`, `--test`).
 
 ## Usage
 

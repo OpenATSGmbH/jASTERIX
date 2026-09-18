@@ -76,7 +76,7 @@ The spec reference is `eurocontrol-specification-asterix-part1-ed-3-1.pdf` in th
 All decoding rules live in `definitions/`:
 
 - `data_block_definition.json` - the CAT/LEN/content envelope
-- `framings/{ioss,ioss_seq,rff}.json` - recording wrappers (per-frame timestamps, sequence numbers, board metadata)
+- `framings/{ioss,ioss_seq,rff}.json` - recording wrappers (per-frame recording time, sequence numbers, board metadata, RFF file header)
 - `categories/categories.json` - registry of supported editions, REFs, SPFs, and the default per category
 - `categories/<NNN>/cat<NNN>_<edition>.json` - per-edition UAP plus per-item layout
 - `categories/<NNN>/cat<NNN>_ref_<edition>.json` / `cat<NNN>_spf_*.json` - REF and SPF definitions (e.g. ARTAS TRIs in 062)
@@ -118,6 +118,19 @@ REF and SPF fields carry a leading 1-byte length indicator, which is authoritati
 
 Affected records are counted: `jASTERIX::numREFErrors()` / `numSPFErrors()` after decoding, and `num_ref_errors` / `num_spf_errors` keys in the `analyzeFile()`/`analyzeData()` result (next to `num_errors`, which stays 0 for these records). In flat mode the field's leaf columns are null for such records; the hex string and flag are not part of the columnar output.
 
+### Analysis result
+
+`analyzeFile()` / `analyzeData()` / `analyzePCAPFile()` (CLI `--analyze`, the COMPASS import probe) run a flat decode and build the statistics from the columns. The result is keyed by data source (`"SAC/SIC"`, or `unknown` when a record has no I0xx/010), then by category. Each category holds `count` (records) and one entry per item path with `count` (records with a value) and, for scalar values, `min` and `max`:
+
+```json
+"50/247": { "62": { "count": 10697, "010.SAC": { "count": 10697, "min": 50, "max": 50 },
+                    "SPF.REP": { "count": 10697, "min": 1, "max": 3 },
+                    "SPF.Target Report Identifiers.TRI": { "count": 10697 } } },
+"num_frames": 1000, "num_records": 10702, "num_errors": 0, "num_ref_errors": 0, "num_spf_errors": 0
+```
+
+The item paths are the flat column names (`<item>.<field>`, repetitive leaves with their full path, `<item>.REP` for the repetition count). Cells that hold arrays (repetitive and extendable items) are counted, without bounds. Record bookkeeping (`FSPEC`, `index`, `length`) and the flat side columns are not items. CAT001 records without I001/010 are attributed to the propagated SAC/SIC, and the reconstructed `140.Time-of-Day` appears as an item. The counters describe the call, not the instance lifetime. The analysis stops after the first chunk with decode errors, and honors `record_limit` like a decode. Covered by `test_analysis.cpp`, and the release check compares the analysis of every recording to its flat decode.
+
 ### Skipped categories in the analysis result
 
 Data blocks of categories that were not decoded are counted per category and reported in the `analyzeFile()` / `analyzeData()` result (and in `--analyze`) under the `skipped_categories` key. `analyzePCAPFile()` returns one sub-result per network stream, each carrying its own `skipped_categories`.
@@ -151,6 +164,24 @@ Two output formats: **structured** (default) and **flat** (`--flat` / `do_flat`)
 ```
 
 In flat mode two CAT001 corrections are applied during decoding, since the record ordering needed for them is lost in columnar output: SAC/SIC from the first record of a data block is propagated to subsequent records that omit I001/010, and a full `140.Time-of-Day` column is reconstructed from the truncated Time of Day (I001/141) using the last CAT002 Time of Day (I002/030) of the same SAC/SIC as reference. The reconstruction picks the time consistent with the truncated value that is closest to the reference on the circular 24 h clock, handling the 512 s wrap and the midnight reset per CAT001 Part 2a section 5.2.15 Notes 1 and 2; offsets of 256 s or more from the reference are ambiguous and yield `null`.
+
+Two optional side columns are added per category when their global flag is set: `artas_md5` (`add_artas_md5_hash`) and `record_data` (`add_record_data`, the record's original bytes as lowercase hex). They sit next to the leaf columns, one entry per record. In structured mode the same two values are written as record keys instead. Covered by `test_artas_md5.cpp` and `test_record_data.cpp`.
+
+**Recording time.** Recordings and captures carry the time at which a data block was recorded, separate from the ASTERIX Time of Day items. It is reported with the same keys for every source, each source delivering what it knows:
+
+| key | meaning | IOSS / IOSS-seq | RFF | PCAP |
+|---|---|---|---|---|
+| `recording_time` | seconds since midnight (double) | frame item, 10 ms resolution | header start time plus `frame_relative_time_ms`, wrapped at midnight | packet capture time, UTC |
+| `recording_day` | day counter, 0 at recording start (uint) | frame item | midnight wraps counted | - |
+| `recording_date` | UTC date as `YYYYMMDD` (uint) | - | header start date plus `recording_day` | from the capture time |
+
+In structured mode the keys are written into every data block object (`frames[].content.data_blocks[]` when framed, `data_blocks[]` for PCAP), next to `category` and `content`. Framed output also keeps them in the frame object. In flat mode they are side columns per category, like `artas_md5`, one entry per accepted record, and they only exist when the source provides the key. PCAP data blocks additionally keep `pcap_time` / `pcap_time_epoch`.
+
+IOSS names the frame items `recording_time` and `recording_day` directly, so a framing definition provides the keys by naming its items that way. RFF has no absolute time per frame, so `rff.json` declares a computed time: `"recording_time": {"start_item": "start_datetime", "offset_item": "frame_relative_time_ms", "offset_lsb": 0.001}`. The 128 byte RFF file header holds the start and stop wall time as text in one of three layouts (` MM/DD/YY HH:MM:SS`, `DD/MM/YY HH:MM:SS`, `YYYY-MM-DD HH:MM:SS`, seconds resolution), parsed into `recording_start_time` (seconds since midnight) and `recording_start_date` in the header object. Without a readable start time the frames get `recording_time` / `recording_day` relative to the recording start, no `recording_date`, and a warning is logged. The RFF frame header fields (relative time in ms, length) are little-endian. Covered by `test_recording_time_ioss.cpp`, `test_recording_time_rff.cpp` and `test_recording_time_pcap.cpp`. Flat re-encoding skips all side columns.
+
+Raw/netto recordings and the `decodeData` buffer entry point (COMPASS network and PCAP import) have no recording time source, so the keys are absent there.
+
+All columns of a category hold exactly one entry per **accepted** record. A record refused after parsing (it overran its data block, or an item parser threw) has already written leaf values at the current record index, so those cells are dropped again and the record is counted in `num_errors` instead of `num_records`. The alignment invariant is checked in `test_flat_decode_data.cpp`, which also covers the `decodeData` entry point used by the PCAP and network readers.
 
 Repetitive items are represented differently per format. Structured mode nests them as an array of objects plus a `"REP"` count key (`"SPF": { "REP": 2, "Target Report Identifiers": [ { "TRI": "76427f0a" }, { "TRI": "10c4d792" } ] }`). Flat mode flattens down to the leaf (struct-of-arrays): one column per leaf path, each per-record cell an array of scalars aligned by repetition index (`"SPF.Target Report Identifiers.TRI": [["76427f0a", "10c4d792"], null, ...]`), plus a `<prefix>.REP` column mirroring the structured REP location (`"SPF.REP"`). Multi-field repetitions produce one such column per field, aligned by index. Extendable items keep their whole array-of-objects in a single column keyed by the item path. Flat-to-nested reconstruction stays lossless: repetitive leaf cells (arrays of scalars) are zipped back into the array-of-objects form by repetition index.
 
@@ -207,10 +238,13 @@ jasterix_client --definition_path definitions/ --filename <file> [options]
 |---|---|
 | `--only_cats <list>` | Restrict decoded categories, e.g. `20,21,48`. Others are skipped |
 | `--editions <list>` | Select non-default editions per category, e.g. `21:0.26,48:1.15`. Without this, the defaults from `categories.json` apply |
+| `--ref_edition <list>` | Select non-default REF editions per category, same syntax, e.g. `21:1.5,62:1.4` |
+| `--spf_edition <list>` | Select non-default SPF editions per category, same syntax, e.g. `21:Aireon,62:ARTAS` |
 | `--frame_limit <n>` | Max frames to process (with framing). Default -1 (unlimited) |
 | `--frame_chunk_size <n>` | Frames per processing chunk. Default 1000, -1 disables chunking |
 | `--data_block_limit <n>` | Max data blocks to process (without framing). Default -1 (unlimited) |
 | `--data_block_chunk_size <n>` | Data blocks per processing chunk. Default 1000, -1 disables chunking |
+| `--record_limit <n>` | Max records to process, decode and analyze alike. Processing stops at the end of the chunk in which the limit is reached, so slightly more records than `n` are delivered. Tighten with the chunk sizes. Default -1 (unlimited) |
 | `--single_thread` | Disable TBB multi-threading (deterministic ordering, easier debugging) |
 
 **Output**
@@ -231,7 +265,7 @@ jasterix_client --definition_path definitions/ --filename <file> [options]
 |---|---|
 | `--analyze` | Analyze data sources and contents (per-SAC/SIC, per-category, per-item statistics) instead of full JSON output; this is what COMPASS uses for its import probe |
 | `--analyze_csv` | Same analysis, printed as CSV |
-| `--analyze_record_limit <n>` | Limit the number of analyzed records. Default 0 (no limit) |
+| `--analyze_record_limit <n>` | Same as `--record_limit`, analyze only. Kept for compatibility. Default 0 (no limit) |
 | `--print_cat_info` | Print the supported categories, editions, REFs, and SPFs, then exit |
 | `--log_perf` | Print performance statistics (records/s, MB/s) after processing |
 | `--debug` | Verbose decoding debug output (only sensible for small files) |
@@ -309,7 +343,11 @@ Note that framed input decodes fine, but re-encoding always produces raw/netto o
 ./build/bin/test_categories --definition_path definitions/ --data_path src/test/
 ```
 
-One `test_cat<NNN>_<edition>.cpp` per category/edition decoding a small binary sample and asserting field values; `test_encode.cpp` for round-trip encoding; `test_limits.cpp` for edge cases; `test_performance.cpp` for benchmarks. Register new tests in `src/test/CMakeLists.txt`.
+One `test_cat<NNN>_<edition>.cpp` per category/edition decoding a small binary sample and asserting field values; `test_encode.cpp` for round-trip encoding; `test_limits.cpp` for edge cases; `test_performance.cpp` for benchmarks. Register new tests in `src/test/CMakeLists.txt`. Tests that need framed or PCAP input build the file in memory with the helpers in `test_synthetic_files.h`.
+
+**Instance reuse.** One `jASTERIX` instance can serve any sequence of decode and analyze calls, structured and flat mixed. Every call starts with a clean chunk pipeline (done flags, leftover chunks of a stopped producer task) and, for structured calls, with the parser tree taken out of columnar mode. The analysis result counters (`num_frames`, `num_records`, `num_errors`, `num_ref_errors`, `num_spf_errors`) describe that call only, `numRecords()` and friends stay cumulative over the instance lifetime. Covered by `test_consecutive_calls.cpp`, which also analyzes a PCAP with two network streams, the case that first showed the problem: the second stream got no records without a record limit, and stale data blocks of the first stream with one.
+
+**Release check** (`test/release_check.py`): checks a packaged AppImage together with a definitions zip, the pairing that ships. It decodes every checked-in sample in `src/test/`, and probes a set of recordings from a data folder outside the repository. Per file it runs `--analyze`, a structured decode and a flat decode with the same `--record_limit`, reduces all three to the same statistics (records and data sources per category, count/min/max per item path) and compares them to each other, and the analysis to a stored result (`--store` writes it). Recording settings (framing or PCAP, editions) and the stored results live next to the data as `jasterix_release_check_recordings.json` / `jasterix_release_check_expected.json`. For PCAP the analysis runs per network stream, so with a record limit it is compared to the stored result only. `python3 test/release_check.py --help` lists the options.
 
 ## Relationship to COMPASS
 

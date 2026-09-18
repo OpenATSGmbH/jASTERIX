@@ -40,6 +40,10 @@ extern int frame_chunk_size;
 extern int data_block_limit;
 extern int data_block_chunk_size;
 extern int data_write_size;
+// records to process in decode and analyze, -1 for no limit. processing stops at the end of
+// the chunk (frame_chunk_size / data_block_chunk_size) in which the limit is reached, so
+// slightly more records than the limit are delivered.
+extern int record_limit;
 
 extern bool single_thread;
 
@@ -203,6 +207,11 @@ class jASTERIX
 
     std::atomic<bool> stop_decoding_{false};
 
+    // num_records_ at the start of the current decode or analyze call. record_limit counts
+    // the records of that call, although num_records_ accumulates over the instance lifetime.
+    size_t record_limit_base_{0};
+    bool recordLimitReached() const;
+
     // during PCAP decode: packet payload offset -> capture time (seconds since epoch, UTC)
     // for the current chunk, sorted by offset. nullptr when not decoding a PCAP.
     const std::vector<std::pair<std::size_t, double>>* pcap_packet_times_{nullptr};
@@ -211,12 +220,35 @@ class jASTERIX
     std::map<unsigned int, nlohmann::json> flat_data_;       // cat -> {leaf_name -> json::array}
     std::map<unsigned int, size_t> flat_record_indices_;     // cat -> current record index
     std::map<unsigned int, nlohmann::json*> flat_hash_columns_; // cat -> pointer to artas_md5 array
+    std::map<unsigned int, nlohmann::json*> flat_record_data_columns_; // cat -> pointer to record_data array
 
-    // sac/sic -> cat -> count
-    //std::map<std::string, std::map<std::string, unsigned int>> sensor_counts_;
+    // data block keys (recording_time, recording_day, recording_date) which become per-record
+    // side columns. set per decode path from the framing definition or the PCAP source.
+    std::vector<std::string> flat_data_block_keys_;
+    std::map<unsigned int, std::map<std::string, nlohmann::json*>> flat_data_block_key_columns_; // cat -> key -> column
 
-    // sac/sic -> cat -> key -> count/min/max
-    std::map<std::string, std::map<std::string, std::map<std::string, nlohmann::json>>> data_item_analysis_;
+    // analysis statistics, filled from the flat columns per chunk: sensor "SAC/SIC" ->
+    // category -> record count and per item path (flat column name) count, min and max
+    struct ItemAnalysis
+    {
+        size_t count{0};
+        bool has_bounds{false};  // scalar values only, arrays are counted
+        nlohmann::json min;
+        nlohmann::json max;
+    };
+    struct CategoryAnalysis
+    {
+        size_t count{0};  // records
+        std::map<std::string, ItemAnalysis> items;
+    };
+    std::map<std::string, std::map<std::string, CategoryAnalysis>> analysis_;
+
+    // set while an analyze call runs the flat decode: the chunk loops feed analyzeFlatChunk
+    // instead of print and callback, and stop after the first chunk with decode errors
+    bool analysis_mode_{false};
+    size_t analysis_errors_base_{0};
+    // record limit of the running analyze call, 0 for the global record_limit
+    unsigned int call_record_limit_{0};
 
     // cat -> {num data blocks, num bytes} of data blocks skipped during analysis
     // because the category could not be decoded (no definition or decoding disabled)
@@ -224,28 +256,38 @@ class jASTERIX
 
     size_t openFile (const std::string& filename); // returns file size
     nlohmann::json loadFramingDefinition(const std::string& framing_str);
-    void analyzeChunk(const std::unique_ptr<nlohmann::json>& data_chunk, bool framing);
-    void analyzeRecord(unsigned int category, const nlohmann::json& record);
+    // runs decode (a flat decode call) in analysis mode and builds the result
+    std::unique_ptr<nlohmann::json> runAnalysis(const std::function<void()>& decode,
+                                                unsigned int record_limit);
+    // statistics of one flat chunk, chunk holds the frames or data blocks it came from
+    void analyzeFlatChunk(const nlohmann::json& flat_chunk, const nlohmann::json& chunk,
+                          bool framing);
+    void addAnalysisResult(nlohmann::json& analysis_result);
     void countSkippedDataBlock(const nlohmann::json& data_block);
     void addSkippedCategoriesAnalysis(nlohmann::json& analysis_result);
-
-    void addJSONAnalysis(const std::string& sensor_id, const std::string& cat_str,
-                         const std::string& prefix, const nlohmann::json& item);
+    // record limit reached, or decode errors while analyzing
+    bool stopAfterChunk() const;
 
     void clearDataChunks();
     void clearDataBlockChunks();
+    // clears leftover chunks and done flags of an earlier decode or analyze call
+    void resetChunkState();
 
-    std::string toCSV (const std::map<std::string, std::map<std::string, std::map<std::string, nlohmann::json>>>& data_item_analysis);
+    std::string toCSV(const nlohmann::json& analysis_result);
 
     void setupFlatColumns();
+    // leaves columnar mode: a flat call sets column targets into flat_data_ on the parser
+    // tree, a structured call on the same instance must write into the records again
+    void clearFlatColumns();
     std::unique_ptr<nlohmann::json> moveFlatData();
 
     void forceStopTask (DataBlockFinderTask& task);
     void forceStopTask (FrameParserTask& task);
 
-    // stamps each data block in the array with "pcap_time"/"pcap_time_epoch" using
-    // pcap_packet_times_ and the data block's content index.
-    void stampPCAPTimes(nlohmann::json& data_blocks);
+    // stamps each data block in the array with "pcap_time"/"pcap_time_epoch" and the
+    // derived "recording_time" (seconds since UTC midnight) / "recording_date" (YYYYMMDD)
+    // using pcap_packet_times_ and the data block's content index.
+    void stampPCAPTimes(nlohmann::json& data_blocks, bool with_time_string);
 };
 }  // namespace jASTERIX
 

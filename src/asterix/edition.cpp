@@ -47,4 +47,10 @@ void Edition::setupColumnWriters(const LeafSetupCallback& callback)
     record_->setupColumnWriters(callback);
 }
 
+void Edition::clearColumnWriters()
+{
+    traced_assert(record_);
+    record_->clearColumnWriters();
+}
+
 }  // namespace jASTERIX

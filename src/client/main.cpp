@@ -84,6 +84,14 @@ void encodeSetPath(nlohmann::json& obj, const std::string& path, const nlohmann:
     }
 }
 
+// Side columns written next to the item leaves in flat mode. They are not record content
+// and must not be encoded.
+bool encodeIsSideColumn(const std::string& name)
+{
+    return name == "artas_md5" || name == "record_data" || name == "recording_time"
+           || name == "recording_day" || name == "recording_date";
+}
+
 // Reconstruct nested per-record JSON objects from one category's flat columns.
 // A null column entry means the item/subfield was not present in that record.
 // Repetitive item leaves are flattened as struct-of-arrays: the cell is an array
@@ -106,6 +114,9 @@ std::vector<nlohmann::json> encodeReconstructRecords(const nlohmann::json& cat_c
         nlohmann::json rec = nlohmann::json::object();
         for (auto it = cat_cols.begin(); it != cat_cols.end(); ++it)
         {
+            if (encodeIsSideColumn(it.key()))
+                continue;
+
             const nlohmann::json& col = it.value();
             if (!col.is_array() || i >= col.size())
                 continue;
@@ -289,6 +300,8 @@ int main(int argc, char** argv)
     std::string definition_path;
     std::string only_cats;
     std::string editions;
+    std::string ref_editions;
+    std::string spf_editions;
     bool pcap{false};
     bool debug{false};
     bool debug_include_framing{false};
@@ -336,6 +349,10 @@ int main(int argc, char** argv)
                                                  "restricts categories to be decoded, e.g. 20,21.")(
                 "editions", po::value<std::string>(&editions),
                 "set non-default editions per category, e.g. 21:0.26,48:1.15.")(
+                "ref_edition", po::value<std::string>(&ref_editions),
+                "set non-default REF editions per category, e.g. 21:1.5,62:1.4.")(
+                "spf_edition", po::value<std::string>(&spf_editions),
+                "set non-default SPF editions per category, e.g. 21:Aireon,62:ARTAS.")(
                 "pcap", po::bool_switch(&pcap),
                 "input file is a PCAP capture (libpcap); ASTERIX payload is extracted and "
                 "decoded as raw/netto (no framing).")(
@@ -343,7 +360,12 @@ int main(int argc, char** argv)
                 "analyze", po::bool_switch(&analyze), "analyze data sources and contents")(
                 "analyze_csv", po::bool_switch(&analyze_csv), "analyze data sources and contents, print as CSV")(
                 "analyze_record_limit", po::value<unsigned int>(&analyze_record_limit),
-                "number of records to analyze. 0 (default) disables limit.")
+                "number of records to analyze. 0 (default) disables limit. same as record_limit, "
+                "kept for compatibility.")(
+                "record_limit", po::value<int>(&jASTERIX::record_limit),
+                "number of records to process, decode and analyze. stops at the end of the chunk "
+                "reaching the limit, so slightly more records are delivered. default -1, use -1 "
+                "to disable.")
         #if USE_OPENSSL
             ("add_artas_md5", po::bool_switch(&jASTERIX::add_artas_md5_hash), "add ARTAS MD5 hashes")(
                 "check_artas_md5", po::value<std::string>(&check_artas_md5_hash),
@@ -509,6 +531,47 @@ int main(int argc, char** argv)
         }
     }
 
+    // cat -> REF / SPF edition pairs, same syntax as --editions
+    auto parse_edition_list = [](const std::string& spec, const std::string& what,
+                                 std::vector<std::pair<unsigned int, std::string>>& list) -> bool {
+        if (!spec.size())
+            return true;
+
+        std::vector<std::string> specs;
+        split(spec, ',', specs);
+
+        for (auto& spec_it : specs)
+        {
+            std::vector<std::string> parts;
+            split(spec_it, ':', parts);
+
+            if (parts.size() != 2 || !parts[0].size() || !parts[1].size())
+            {
+                logerr << "jASTERIX client: invalid " << what << " spec '" << spec_it
+                       << "', expected cat:edition" << logendl;
+                return false;
+            }
+
+            int cat = std::atoi(parts[0].c_str());
+            if (cat < 1 || cat > 255)
+            {
+                logerr << "jASTERIX client: impossible cat value '" << parts[0] << "'" << logendl;
+                return false;
+            }
+
+            list.emplace_back(static_cast<unsigned int>(cat), parts[1]);
+        }
+
+        return true;
+    };
+
+    std::vector<std::pair<unsigned int, std::string>> ref_edition_list;
+    std::vector<std::pair<unsigned int, std::string>> spf_edition_list;
+
+    if (!parse_edition_list(ref_editions, "REF edition", ref_edition_list)
+        || !parse_edition_list(spf_editions, "SPF edition", spf_edition_list))
+        return -1;
+
     // check if basic configuration works
     try
     {
@@ -551,6 +614,38 @@ int main(int argc, char** argv)
             asterix.category(ed_it.first)->setCurrentEdition(ed_it.second);
 
             loginf << "jASTERIX client: category " << ed_it.first << " using edition '"
+                   << ed_it.second << "'" << logendl;
+        }
+
+        for (auto& ed_it : ref_edition_list)
+        {
+            if (!asterix.hasCategory(ed_it.first)
+                || !asterix.category(ed_it.first)->hasREFEdition(ed_it.second))
+            {
+                logerr << "jASTERIX client: category " << ed_it.first << " has no REF edition '"
+                       << ed_it.second << "'" << logendl;
+                return -1;
+            }
+
+            asterix.category(ed_it.first)->setCurrentREFEdition(ed_it.second);
+
+            loginf << "jASTERIX client: category " << ed_it.first << " using REF edition '"
+                   << ed_it.second << "'" << logendl;
+        }
+
+        for (auto& ed_it : spf_edition_list)
+        {
+            if (!asterix.hasCategory(ed_it.first)
+                || !asterix.category(ed_it.first)->hasSPFEdition(ed_it.second))
+            {
+                logerr << "jASTERIX client: category " << ed_it.first << " has no SPF edition '"
+                       << ed_it.second << "'" << logendl;
+                return -1;
+            }
+
+            asterix.category(ed_it.first)->setCurrentSPFEdition(ed_it.second);
+
+            loginf << "jASTERIX client: category " << ed_it.first << " using SPF edition '"
                    << ed_it.second << "'" << logendl;
         }
 

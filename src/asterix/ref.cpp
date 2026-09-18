@@ -111,7 +111,7 @@ size_t ReservedExpansionField::parseItem(const char* data, size_t index, size_t 
                << logendl;
 
     auto* fspec_parser = static_cast<ExtendableBitsItemParser*>(field_specification_.get());
-    std::vector<bool> fspec_bits;
+    thread_local std::vector<bool> fspec_bits;  // reused per thread, cleared by parseItemBits
     parsed_bytes = fspec_parser->parseItemBits(
                 data, index + parsed_bytes, size, parsed_bytes, total_size, fspec_bits, debug,
                 &items_names_);
@@ -260,6 +260,13 @@ void ReservedExpansionField::setupColumnWriters(const LeafSetupCallback& callbac
 
     for (auto& item_it : items_)
         item_it.second->setupColumnWriters(capturing);
+}
+
+void ReservedExpansionField::clearColumnWriters()
+{
+    ItemParserBase::clearColumnWriters();
+    for (auto& item_it : items_)
+        item_it.second->clearColumnWriters();
 }
 
 // bool ReservedExpansionField::compareKey (const nlohmann::json& container, const std::string&

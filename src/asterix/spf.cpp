@@ -370,6 +370,16 @@ void SpecialPurposeField::setupColumnWriters(const LeafSetupCallback& callback)
         item_it->setupColumnWriters(capturing);
 }
 
+void SpecialPurposeField::clearColumnWriters()
+{
+    ItemParserBase::clearColumnWriters();
+    for (auto& item_it : complex_items_)
+        item_it.second->clearColumnWriters();
+
+    for (auto& item_it : simple_items_)
+        item_it->clearColumnWriters();
+}
+
 
 // bool SpecialPurposeField::compareKey (const nlohmann::json& container, const std::string& value)
 //{

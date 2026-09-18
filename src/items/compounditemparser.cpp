@@ -63,6 +63,7 @@ CompoundItemParser::CompoundItemParser(const nlohmann::json& item_definition, co
         item = ItemParserBase::createItemParser(data_item_it, long_name_prefix_); // leave out own name
         traced_assert(item);
         items_.push_back(std::unique_ptr<ItemParserBase>{item});
+        optional_items_.push_back(dynamic_cast<OptionalItemParser*>(item));
     }
 }
 
@@ -94,7 +95,7 @@ size_t CompoundItemParser::parseItem(const char* data, size_t index, size_t size
             loginf << "parsing compound item '" << name_ << "' data item '" << data_item_it->name()
                    << "' index " << index + parsed_bytes << logendl;
 
-        auto* opt_parser = dynamic_cast<OptionalItemParser*>(data_item_it.get());
+        OptionalItemParser* opt_parser = optional_items_[&data_item_it - items_.data()];
         if (opt_parser)
         {
             parsed_bytes += opt_parser->parseItem(
@@ -195,6 +196,13 @@ void CompoundItemParser::setupColumnWriters(const LeafSetupCallback& callback)
     column_mode_ = true;
     for (auto& item_it : items_)
         item_it->setupColumnWriters(callback);
+}
+
+void CompoundItemParser::clearColumnWriters()
+{
+    ItemParserBase::clearColumnWriters();
+    for (auto& item_it : items_)
+        item_it->clearColumnWriters();
 }
 
 }  // namespace jASTERIX

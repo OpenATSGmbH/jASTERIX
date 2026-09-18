@@ -162,6 +162,17 @@ void ItemParserBase::setColumnTarget(nlohmann::json* column_array, size_t* recor
     record_index_ = record_index;
 }
 
+void ItemParserBase::clearColumnWriters()
+{
+    column_mode_ = false;
+    column_target_ = nullptr;
+    record_index_ = nullptr;
+    column_array_append_ = false;
+    scratch_capture_ = false;
+    captured_columns_.clear();
+    captured_record_index_ = nullptr;
+}
+
 LeafSetupCallback ItemParserBase::captureColumns(const LeafSetupCallback& callback)
 {
     // setupColumnWriters() runs again for every decoded chunk, and each run destroys

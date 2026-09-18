@@ -77,6 +77,8 @@ class Category
     CategoryItemInfo itemInfo () const;
 
     void setupColumnWriters(const LeafSetupCallback& callback);
+    // all editions, a flat decode may have used another edition than the current one
+    void clearColumnWriters();
 
   protected:
     std::string number_;

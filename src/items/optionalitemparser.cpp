@@ -171,4 +171,11 @@ void OptionalItemParser::setupColumnWriters(const LeafSetupCallback& callback)
         df_item->setupColumnWriters(callback);
 }
 
+void OptionalItemParser::clearColumnWriters()
+{
+    ItemParserBase::clearColumnWriters();
+    for (auto& df_item : data_fields_)
+        df_item->clearColumnWriters();
+}
+
 }  // namespace jASTERIX

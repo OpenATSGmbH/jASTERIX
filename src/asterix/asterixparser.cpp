@@ -235,9 +235,45 @@ void ASTERIXParser::setFlatHashColumns(std::map<unsigned int, json*>* columns)
     flat_hash_columns_ = columns;
 }
 
+void ASTERIXParser::setFlatRecordDataColumns(std::map<unsigned int, json*>* columns)
+{
+    flat_record_data_columns_ = columns;
+}
+
 void ASTERIXParser::setFlatData(std::map<unsigned int, json>* data)
 {
     flat_data_ = data;
+}
+
+void ASTERIXParser::setFlatDataBlockKeyColumns(
+    std::map<unsigned int, std::map<std::string, nlohmann::json*>>* columns)
+{
+    flat_data_block_key_columns_ = columns;
+}
+
+/**
+ * Removes the cells of a rejected record from all columns of the category.
+ *
+ * The item parsers write leaf values at the current record index while parsing, so a record
+ * that is refused afterwards has already left values behind. The record index is only
+ * advanced for accepted records, so truncating every column to it restores the invariant
+ * of one entry per accepted record.
+ */
+void ASTERIXParser::dropFlatRecord(unsigned int cat)
+{
+    if (!flat_data_ || !flat_record_indices_ || !flat_data_->count(cat)
+        || !flat_record_indices_->count(cat))
+        return;
+
+    size_t num_accepted = flat_record_indices_->at(cat);
+
+    for (auto& column : flat_data_->at(cat))
+    {
+        if (!column.is_array() || column.size() <= num_accepted)
+            continue;
+
+        column.erase(column.begin() + num_accepted, column.end());
+    }
 }
 
 std::pair<size_t, size_t> ASTERIXParser::decodeDataBlocks(const char* data, size_t total_size,
@@ -589,18 +625,8 @@ std::pair<size_t, size_t> ASTERIXParser::decodeDataBlock(const char* data, size_
                         }
                     }
 
-#if USE_OPENSSL
-                    if (add_artas_md5_hash)
-                    {
-                        calculateARTASMD5Hash(&data[data_block_index + data_block_parsed_bytes],
-                                              record_parsed_bytes, record_scratch);
-
-                        if (flat_hash_columns_ && flat_hash_columns_->count(cat))
-                            flat_hash_columns_->at(cat)->push_back(record_scratch.at("artas_md5"));
-                    }
-                    else if (flat_hash_columns_ && flat_hash_columns_->count(cat))
-                        flat_hash_columns_->at(cat)->push_back(nullptr);
-#endif
+                    // start of the record just parsed, needed by the side columns below
+                    const size_t record_start = data_block_index + data_block_parsed_bytes;
 
                     data_block_parsed_bytes += record_parsed_bytes;
 
@@ -616,7 +642,52 @@ std::pair<size_t, size_t> ASTERIXParser::decodeDataBlock(const char* data, size_
                                << logendl;
 
                         ++num_errors;
+
+                        // the record is rejected, so drop the cells the item parsers
+                        // already wrote for it
+                        dropFlatRecord(cat);
+
                         break;
+                    }
+
+                    // The side columns grow by push_back while the leaf columns are written
+                    // at the record index. They are therefore filled only for accepted
+                    // records, after the overrun check, so that all columns stay aligned.
+#if USE_OPENSSL
+                    if (add_artas_md5_hash)
+                    {
+                        calculateARTASMD5Hash(&data[record_start], record_parsed_bytes,
+                                              record_scratch);
+
+                        if (flat_hash_columns_ && flat_hash_columns_->count(cat))
+                            flat_hash_columns_->at(cat)->push_back(record_scratch.at("artas_md5"));
+                    }
+                    else if (flat_hash_columns_ && flat_hash_columns_->count(cat))
+                        flat_hash_columns_->at(cat)->push_back(nullptr);
+#endif
+
+                    // original record bytes as hex, same column mechanism as the hash
+                    if (flat_record_data_columns_ && flat_record_data_columns_->count(cat))
+                    {
+                        if (add_record_data)
+                            flat_record_data_columns_->at(cat)->push_back(
+                                binary2hex((const unsigned char*)&data[record_start],
+                                           record_parsed_bytes));
+                        else
+                            flat_record_data_columns_->at(cat)->push_back(nullptr);
+                    }
+
+                    // data block keys (recording_time etc.) as per-record side columns,
+                    // null when the data block does not carry the key
+                    if (flat_data_block_key_columns_ && flat_data_block_key_columns_->count(cat))
+                    {
+                        for (auto& [key, column] : flat_data_block_key_columns_->at(cat))
+                        {
+                            if (data_block.contains(key))
+                                column->push_back(data_block.at(key));
+                            else
+                                column->push_back(nullptr);
+                        }
                     }
 
                     ++flat_record_indices_->at(cat);
@@ -632,6 +703,9 @@ std::pair<size_t, size_t> ASTERIXParser::decodeDataBlock(const char* data, size_
                        << logendl;
 
                 ++num_errors;
+
+                // the record that threw is rejected, drop its partially written cells
+                dropFlatRecord(cat);
             }
         }
         else

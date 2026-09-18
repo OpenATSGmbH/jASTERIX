@@ -279,4 +279,10 @@ void Category::setupColumnWriters(const LeafSetupCallback& callback)
     editions_.at(current_edition_)->setupColumnWriters(callback);
 }
 
+void Category::clearColumnWriters()
+{
+    for (auto& edition_it : editions_)
+        edition_it.second->clearColumnWriters();
+}
+
 }  // namespace jASTERIX
