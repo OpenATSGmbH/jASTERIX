@@ -70,6 +70,11 @@ message("  LOG4CPP_LIBRARY: ${LOG4CPP_LIBRARIES}")
 target_link_libraries ( jasterix
     ${LOG4CPP_LIBRARIES}
     )
+
+IF (WIN32)
+# log4cpp/config-MinGW32.h does not define int64_t
+target_compile_definitions(jasterix PUBLIC LOG4CPP_HAVE_INT64_T)
+ENDIF()
 ENDIF()
 
 IF (USE_OPENSSL)
@@ -82,7 +87,12 @@ target_link_libraries ( jasterix
     )
 ENDIF()
 
+IF (WIN32)
+# oneTBB on Windows is tbb12, the own FindTBB.cmake searches tbb: use the oneTBB config
+find_package(TBB CONFIG REQUIRED)
+ELSE()
 find_package(TBB REQUIRED)
+ENDIF()
 
 find_package ( LibArchive REQUIRED )
 message("  LibArchive_INCLUDE_DIRS: ${LibArchive_INCLUDE_DIRS}")

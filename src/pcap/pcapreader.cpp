@@ -18,18 +18,12 @@
 #include "pcap/pcapreader.h"
 
 #include "logger.h"
+#include "time_utc.h"
 
 #include <pcap.h>
 #include <pcap/sll.h>
 
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#include <netinet/if_ether.h>
-#include <net/ethernet.h>
-#include <netinet/tcp.h>
-#include <netinet/udp.h>
-#include <arpa/inet.h>
-
+#include <cstdint>
 #include <cstdio>
 #include <ctime>
 #include <sstream>
@@ -50,6 +44,42 @@ struct sll2_header
     uint8_t  sll2_addr[8];
 };
 #endif
+
+// network headers as in the capture, without the platform network headers (not on Windows).
+// Sizes are the same as of the Linux structs ether_header, ip, tcphdr and udphdr.
+namespace
+{
+const int     EtherTypeIP   = 0x0800;
+const uint8_t IPProtocolTCP = 6;
+const uint8_t IPProtocolUDP = 17;
+
+const size_t EtherHeaderSize = 14;
+const size_t IPHeaderSize    = 20;  // without options
+const size_t TCPHeaderSize   = 20;  // without options
+const size_t UDPHeaderSize   = 8;
+
+// offsets in the headers
+const size_t EtherTypeOffset   = 12;
+const size_t IPProtocolOffset  = 9;
+const size_t IPSourceOffset    = 12;
+const size_t IPDestOffset      = 16;
+const size_t PortSourceOffset  = 0;   // TCP and UDP
+const size_t PortDestOffset    = 2;   // TCP and UDP
+const size_t UDPLengthOffset   = 4;
+
+// network byte order (big endian)
+uint16_t readUInt16BE(const unsigned char* data)
+{
+    return static_cast<uint16_t>((data[0] << 8) | data[1]);
+}
+
+// dotted decimal, as inet_ntop for AF_INET
+std::string ipv4ToString(const unsigned char* address)
+{
+    return std::to_string(address[0]) + "." + std::to_string(address[1]) + "."
+           + std::to_string(address[2]) + "." + std::to_string(address[3]);
+}
+}  // namespace
 
 namespace jASTERIX
 {
@@ -107,26 +137,25 @@ void PcapReader::digestPacket(const struct pcap_pkthdr* pkthdr, const unsigned c
 {
     if (link_layer_type_ == DLT_EN10MB)
     {
-        const struct ether_header* eh = (const struct ether_header*)packet;
-        digestEther(ntohs(eh->ether_type), pkthdr, packet + sizeof(struct ether_header),
-                    sizeof(struct ether_header));
+        digestEther(readUInt16BE(packet + EtherTypeOffset), pkthdr, packet + EtherHeaderSize,
+                    EtherHeaderSize);
     }
     else if (link_layer_type_ == DLT_LINUX_SLL)
     {
         const struct sll_header* sll = (const struct sll_header*)packet;
-        digestEther(ntohs(sll->sll_protocol), pkthdr, packet + sizeof(struct sll_header),
-                    sizeof(struct sll_header));
+        digestEther(readUInt16BE((const unsigned char*)&sll->sll_protocol), pkthdr,
+                    packet + sizeof(struct sll_header), sizeof(struct sll_header));
     }
     else if (link_layer_type_ == DLT_LINUX_SLL2)
     {
         const struct sll2_header* sll2 = (const struct sll2_header*)packet;
-        digestEther(ntohs(sll2->sll2_protocol), pkthdr, packet + sizeof(struct sll2_header),
-                    sizeof(struct sll2_header));
+        digestEther(readUInt16BE((const unsigned char*)&sll2->sll2_protocol), pkthdr,
+                    packet + sizeof(struct sll2_header), sizeof(struct sll2_header));
     }
     else if (link_layer_type_ == DLT_RAW)
     {
         // raw IP packets, no link layer header
-        digestEther(ETHERTYPE_IP, pkthdr, packet, 0);
+        digestEther(EtherTypeIP, pkthdr, packet, 0);
     }
     else
     {
@@ -137,8 +166,6 @@ void PcapReader::digestPacket(const struct pcap_pkthdr* pkthdr, const unsigned c
 void PcapReader::digestEther(int ether_type, const struct pcap_pkthdr* pkthdr,
                              const unsigned char* packet, std::uint64_t data_offs)
 {
-    char         source_ip[INET_ADDRSTRLEN];
-    char         dest_ip[INET_ADDRSTRLEN];
     std::string  source_ip_str, dest_ip_str;
     unsigned int source_port = 0, dest_port = 0;
     uint8_t      ip_protocol = 0;
@@ -147,40 +174,36 @@ void PcapReader::digestEther(int ether_type, const struct pcap_pkthdr* pkthdr,
     const unsigned char* data        = nullptr;
     size_t               data_length = 0;
 
-    if (ether_type == ETHERTYPE_IP)
+    if (ether_type == EtherTypeIP)
     {
-        const struct ip* ip_header = (const struct ip*)packet;
-        inet_ntop(AF_INET, &(ip_header->ip_src), source_ip, INET_ADDRSTRLEN);
-        inet_ntop(AF_INET, &(ip_header->ip_dst), dest_ip, INET_ADDRSTRLEN);
+        source_ip_str = ipv4ToString(packet + IPSourceOffset);
+        dest_ip_str   = ipv4ToString(packet + IPDestOffset);
 
-        source_ip_str = std::string(source_ip);
-        dest_ip_str   = std::string(dest_ip);
+        ip_protocol = packet[IPProtocolOffset];
+        ip_version  = packet[0] >> 4;
 
-        ip_protocol = ip_header->ip_p;
-        ip_version  = ip_header->ip_v;
+        const unsigned char* transport_header = packet + IPHeaderSize;
 
-        if (ip_header->ip_p == IPPROTO_TCP)
+        if (ip_protocol == IPProtocolTCP)
         {
-            const struct tcphdr* tcp_header = (const struct tcphdr*)(packet + sizeof(struct ip));
-            source_port = ntohs(tcp_header->source);
-            dest_port   = ntohs(tcp_header->dest);
+            source_port = readUInt16BE(transport_header + PortSourceOffset);
+            dest_port   = readUInt16BE(transport_header + PortDestOffset);
 
-            data        = packet + sizeof(struct ip) + sizeof(struct tcphdr);
-            data_length = pkthdr->len - (data_offs + sizeof(struct ip) + sizeof(struct tcphdr));
+            data        = transport_header + TCPHeaderSize;
+            data_length = pkthdr->len - (data_offs + IPHeaderSize + TCPHeaderSize);
         }
-        else if (ip_header->ip_p == IPPROTO_UDP)
+        else if (ip_protocol == IPProtocolUDP)
         {
-            const struct udphdr* udp_header = (const struct udphdr*)(packet + sizeof(struct ip));
-            source_port = ntohs(udp_header->source);
-            dest_port   = ntohs(udp_header->dest);
+            source_port = readUInt16BE(transport_header + PortSourceOffset);
+            dest_port   = readUInt16BE(transport_header + PortDestOffset);
 
-            data = packet + sizeof(struct ip) + sizeof(struct udphdr);
+            data = transport_header + UDPHeaderSize;
             // use length from the udp header to drop any trailing padding
-            data_length = ntohs(udp_header->len) - sizeof(struct udphdr);
+            data_length = readUInt16BE(transport_header + UDPLengthOffset) - UDPHeaderSize;
         }
         else
         {
-            unknown_ip_protocols_.insert(ip_header->ip_p);
+            unknown_ip_protocols_.insert(ip_protocol);
         }
     }
     else
@@ -377,9 +400,9 @@ std::string PcapReader::signatureToString(const Signature& signature)
 
     std::stringstream ss;
 
-    if (ip_protocol == IPPROTO_TCP)
+    if (ip_protocol == IPProtocolTCP)
         ss << "TCP";
-    else if (ip_protocol == IPPROTO_UDP)
+    else if (ip_protocol == IPProtocolUDP)
         ss << "UDP";
     else
         ss << "IPproto" << (unsigned int)ip_protocol;
@@ -404,7 +427,7 @@ std::string PcapReader::timeToString(double epoch_seconds)
     }
 
     struct tm tm_utc;
-    gmtime_r(&secs, &tm_utc);
+    TimeUTC::toTm(secs, tm_utc);
 
     char date_buf[32];
     strftime(date_buf, sizeof(date_buf), "%Y-%m-%d %H:%M:%S", &tm_utc);

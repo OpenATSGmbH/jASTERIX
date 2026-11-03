@@ -20,6 +20,10 @@
 // Builders for small synthetic recordings used by the framing, PCAP and limit tests. The
 // files are built in memory around one CAT247 data block and written to a temp file.
 
+#include "time_utc.h"
+
+#include <boost/filesystem.hpp>
+
 #include <unistd.h>
 
 #include <cstdint>
@@ -163,15 +167,17 @@ inline time_t utcSeconds(int year, int month, int day, int hours, int minutes, i
     tm_utc.tm_min = minutes;
     tm_utc.tm_sec = seconds;
 
-    return timegm(&tm_utc);
+    return TimeUTC::fromTm(tm_utc);
 }
 
 // writes the bytes to a temp file named by tag and process id, returns the path
 inline std::string writeTempFile(const std::string& tag, const std::vector<unsigned char>& bytes,
                                  const std::string& extension = ".bin")
 {
-    std::string path = std::string(P_tmpdir) + "/jasterix_test_" + tag + "_"
-                       + std::to_string(getpid()) + extension;
+    // P_tmpdir is the drive root on Windows
+    std::string path = (boost::filesystem::temp_directory_path()
+                        / ("jasterix_test_" + tag + "_" + std::to_string(getpid()) + extension))
+                           .string();
 
     std::ofstream out(path, std::ios::binary);
     out.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
