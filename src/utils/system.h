@@ -19,6 +19,7 @@
 
 #include <sys/resource.h>
 
+#include <cstdint>
 #include <fstream>
 #include <limits>
 #include <sstream>
@@ -53,7 +54,7 @@ float getFreeRAMinGB()
     {
         if (token == "MemAvailable:")
         {
-            unsigned long mem;
+            std::uint64_t mem;
 
             if (file >> mem)  // returns in kB
             {

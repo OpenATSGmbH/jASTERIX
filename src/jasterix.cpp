@@ -153,7 +153,7 @@ jASTERIX::jASTERIX(const std::string& definition_path, bool print, bool debug,
         {
             cat = 256;  // impossible number
             cat_str = cat_def_it.key();
-            cat = static_cast<unsigned int>(stoul(cat_str));
+            cat = static_cast<unsigned int>(stoull(cat_str));
 
             if (cat > 255 || category_definitions_.count(cat) != 0)
                 throw invalid_argument("jASTERIX called with wrong asterix category '" + cat_str +

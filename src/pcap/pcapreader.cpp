@@ -135,7 +135,7 @@ void PcapReader::digestPacket(const struct pcap_pkthdr* pkthdr, const unsigned c
 }
 
 void PcapReader::digestEther(int ether_type, const struct pcap_pkthdr* pkthdr,
-                             const unsigned char* packet, unsigned long data_offs)
+                             const unsigned char* packet, std::uint64_t data_offs)
 {
     char         source_ip[INET_ADDRSTRLEN];
     char         dest_ip[INET_ADDRSTRLEN];
