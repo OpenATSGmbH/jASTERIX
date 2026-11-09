@@ -19,7 +19,7 @@
 
 #include <jasterix/iteminfo.h>
 
-#include "json.hpp"
+#include <nlohmann/json.hpp>
 
 #include <cstddef>
 #include <sstream>
