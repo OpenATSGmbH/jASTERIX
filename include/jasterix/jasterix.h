@@ -30,7 +30,7 @@
 #include <mutex>
 #include <string>
 
-#include "json.hpp"
+#include <nlohmann/json.hpp>
 
 namespace jASTERIX
 {
