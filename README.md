@@ -78,6 +78,8 @@ cmake ..
 make
 ```
 
+The library is built as a shared library by default. For a static library, configure with `cmake -DBUILD_SHARED_LIBS=OFF ..` instead.
+
 To install the built libary in the system, execute the following command in the build folder:
 ```
 sudo make install

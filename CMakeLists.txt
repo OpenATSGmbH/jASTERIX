@@ -27,6 +27,8 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 # Instruct CMake to run moc automatically when needed.
 #set(CMAKE_AUTOMOC ON)
 
+option(BUILD_SHARED_LIBS "Build jASTERIX as a shared library" ON)
+
 add_library(jasterix "")
 
 set (USE_LOG4CPP true)
