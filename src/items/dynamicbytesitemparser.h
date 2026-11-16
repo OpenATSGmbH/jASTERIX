@@ -43,6 +43,8 @@ class DynamicBytesItemParser : public ItemParserBase
 
     bool has_additative_factor_{false};
     int additative_factor_;
+
+    std::string data_type_;  // "string": output bytes as text; empty: output {index, length}
 };
 
 }  // namespace jASTERIX
