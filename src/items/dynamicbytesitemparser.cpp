@@ -36,6 +36,15 @@ DynamicBytesItemParser::DynamicBytesItemParser(const nlohmann::json& item_defini
 
     length_variable_name_ = item_definition.at("length_variable");
 
+    if (item_definition.contains("data_type"))
+    {
+        data_type_ = item_definition.at("data_type").get<std::string>();
+
+        if (data_type_ != "string")
+            throw runtime_error("dynamic bytes item '" + name_ + "' with unknown data type '" +
+                                data_type_ + "'");
+    }
+
     substract_previous_ = item_definition.contains("substract_previous") &&
                           item_definition.at("substract_previous") == true;
 
@@ -102,11 +111,24 @@ size_t DynamicBytesItemParser::parseItem(const char* data, size_t index, size_t 
 
     //traced_assert(!target.contains(name_));  // hot path - O(N) json lookup per field
 
-    writeValue(target, json::object({{"index", index}, {"length", length}}));
+    if (data_type_ == "string")
+    {
+        std::string str_value(reinterpret_cast<const char*>(data) + index, length);
 
-    if (debug)
-        loginf << "parsed dynamic bytes item '" + name_ + "' index " << index << " length "
-               << length << logendl;
+        if (debug)
+            loginf << "parsed dynamic bytes item '" + name_ + "' index " << index << " length "
+                   << length << " string '" << str_value << "'" << logendl;
+
+        writeValue(target, std::move(str_value));
+    }
+    else
+    {
+        writeValue(target, json::object({{"index", index}, {"length", length}}));
+
+        if (debug)
+            loginf << "parsed dynamic bytes item '" + name_ + "' index " << index << " length "
+                   << length << logendl;
+    }
 
     return length;
 }
