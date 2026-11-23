@@ -1,0 +1,310 @@
+{
+    "name": "cat240_1.3_record",
+    "type": "record",
+    "field_specification": {
+        "name": "FSPEC",
+        "type": "extendable_bits",
+        "reverse_bits": true,
+        "data_type": "bitfield"
+    },
+    "uap": [
+        "010",
+        "000",
+        "020",
+        "030",
+        "040",
+        "041",
+        "048",
+        "FX",
+        "049",
+        "050",
+        "051",
+        "052",
+        "140",
+        "RE",
+        "SP",
+        "FX"
+    ],
+    "items": [
+        {
+            "number": "000",
+            "name": "Message Type",
+            "comment": "This Data Item allows for a more convenient handling of the messages at the receiver side by further defining the type of transaction.",
+            "type": "item",
+            "data_fields": [
+                {
+                    "name": "Message Type",
+                    "comment": "1 Video Summary message\n2 Video message",
+                    "type": "fixed_bytes",
+                    "length": 1,
+                    "data_type": "uint"
+                }
+            ]
+        },
+        {
+            "number": "010",
+            "name": "Data Source Identifier",
+            "comment": "Identification of the system from which the data are received.",
+            "type": "item",
+            "data_fields": [
+                {
+                    "name": "SAC",
+                    "comment": "System Area Code",
+                    "type": "fixed_bytes",
+                    "length": 1,
+                    "data_type": "uint"
+                },
+                {
+                    "name": "SIC",
+                    "comment": "System Identification Code",
+                    "type": "fixed_bytes",
+                    "length": 1,
+                    "data_type": "uint"
+                }
+            ]
+        },
+        {
+            "number": "020",
+            "name": "Video Record Header",
+            "comment": "Contains a message sequence identifier.",
+            "type": "item",
+            "data_fields": [
+                {
+                    "name": "MSG_INDEX",
+                    "comment": "Message Sequence Identifier (video record cyclic counter)",
+                    "type": "fixed_bytes",
+                    "length": 4,
+                    "data_type": "uint"
+                }
+            ]
+        },
+        {
+            "number": "030",
+            "name": "Video Summary",
+            "comment": "Contains an ASCII string (free text to define stream meta data).",
+            "type": "item",
+            "data_fields": [
+                {
+                    "name": "REP",
+                    "comment": "Number of characters following",
+                    "type": "fixed_bytes",
+                    "length": 1,
+                    "data_type": "uint"
+                },
+                {
+                    "name": "Video Summary",
+                    "comment": "ASCII characters, REP counts only the characters",
+                    "type": "dynamic_bytes",
+                    "data_type": "string",
+                    "length_variable": "REP"
+                }
+            ]
+        },
+        {
+            "number": "040",
+            "name": "Video Header Nano",
+            "comment": "Defines a group of video cells corresponding to a video radial: all cells have the same size in azimuth and range and are consecutive in range.",
+            "type": "item",
+            "data_fields": [
+                {
+                    "name": "START_AZ",
+                    "comment": "Start azimuth of the cells group, deg",
+                    "type": "fixed_bytes",
+                    "length": 2,
+                    "data_type": "uint",
+                    "lsb": 0.0054931640625
+                },
+                {
+                    "name": "END_AZ",
+                    "comment": "End azimuth of the cells group, deg",
+                    "type": "fixed_bytes",
+                    "length": 2,
+                    "data_type": "uint",
+                    "lsb": 0.0054931640625
+                },
+                {
+                    "name": "START_RG",
+                    "comment": "Starting range of the cells group, expressed in number of cells. 0 is the radar location without any bias.",
+                    "type": "fixed_bytes",
+                    "length": 4,
+                    "data_type": "uint"
+                },
+                {
+                    "name": "CELL_DUR",
+                    "comment": "Video cell duration in nanoseconds",
+                    "type": "fixed_bytes",
+                    "length": 4,
+                    "data_type": "uint"
+                }
+            ]
+        },
+        {
+            "number": "041",
+            "name": "Video Header Femto",
+            "comment": "Defines a group of video cells corresponding to a video radial: all cells have the same size in azimuth and range and are consecutive in range.",
+            "type": "item",
+            "data_fields": [
+                {
+                    "name": "START_AZ",
+                    "comment": "Start azimuth of the cells group, deg",
+                    "type": "fixed_bytes",
+                    "length": 2,
+                    "data_type": "uint",
+                    "lsb": 0.0054931640625
+                },
+                {
+                    "name": "END_AZ",
+                    "comment": "End azimuth of the cells group, deg",
+                    "type": "fixed_bytes",
+                    "length": 2,
+                    "data_type": "uint",
+                    "lsb": 0.0054931640625
+                },
+                {
+                    "name": "START_RG",
+                    "comment": "Starting range of the cells group, expressed in number of cells. 0 is the radar location without any bias.",
+                    "type": "fixed_bytes",
+                    "length": 4,
+                    "data_type": "uint"
+                },
+                {
+                    "name": "CELL_DUR",
+                    "comment": "Video cell duration in femtoseconds",
+                    "type": "fixed_bytes",
+                    "length": 4,
+                    "data_type": "uint"
+                }
+            ]
+        },
+        {
+            "number": "048",
+            "name": "Video Cells Resolution & Data Compression Indicator",
+            "comment": "This Data Item defines the bit resolution used in the coding of the video signal amplitude in all cells of the video group as well as an indicator whether data compression has been applied.",
+            "type": "item",
+            "data_fields": [
+                {
+                    "name": "resolution_compression",
+                    "type": "fixed_bitfield",
+                    "length": 2,
+                    "items": [
+                        {
+                            "name": "C",
+                            "comment": "Data Compression Indicator\n0 No compression applied\n1 Compression applied",
+                            "type": "fixed_bits",
+                            "start_bit": 15,
+                            "bit_length": 1
+                        },
+                        {
+                            "name": "RES",
+                            "comment": "Bit resolution used for the coding of the amplitude of the video signal in every cell of a video group\n1 Monobit Resolution (1 bit)\n2 Low Resolution (2 bits)\n3 Medium Resolution (4 bits)\n4 High Resolution (8 bits)\n5 Very High Resolution (16 bits)\n6 Ultra High Resolution (32 bits)",
+                            "type": "fixed_bits",
+                            "start_bit": 0,
+                            "bit_length": 8
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "number": "049",
+            "name": "Video Octets & Video Cells Counters",
+            "comment": "This Data Item contains the number of valid octets (i.e. non-empty octets) used in the coding of the video signal amplitude and the number of valid cells in the video group.",
+            "type": "item",
+            "data_fields": [
+                {
+                    "name": "NB_VB",
+                    "comment": "Number of valid octets in the Video Block Data Volume Item (I240/050, I240/051 or I240/052)",
+                    "type": "fixed_bytes",
+                    "length": 2,
+                    "data_type": "uint"
+                },
+                {
+                    "name": "NB_CELLS",
+                    "comment": "Number of valid cells in the Video Block Data Volume Item (I240/050, I240/051 or I240/052)",
+                    "type": "fixed_bytes",
+                    "length": 3,
+                    "data_type": "uint"
+                }
+            ]
+        },
+        {
+            "number": "050",
+            "name": "Video Block Low Data Volume",
+            "comment": "Contains a group of video cells corresponding to a video radial; all cells have the same size in azimuth and range and are consecutive in range. Used for a low data volume, up to 1020 bytes.",
+            "type": "item",
+            "data_fields": [
+                {
+                    "name": "Video Block Low Data Volume",
+                    "type": "repetitive",
+                    "items": [
+                        {
+                            "name": "VIDEO_BLOCK",
+                            "comment": "Video signal amplitude of the cells in the group, coded according to the resolution defined in I240/048",
+                            "type": "fixed_bytes",
+                            "length": 4,
+                            "data_type": "bin"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "number": "051",
+            "name": "Video Block Medium Data Volume",
+            "comment": "Contains a group of video cells corresponding to a video radial; all cells have the same size in azimuth and range and are consecutive in range. Used for a medium data volume, up to 16320 bytes.",
+            "type": "item",
+            "data_fields": [
+                {
+                    "name": "Video Block Medium Data Volume",
+                    "type": "repetitive",
+                    "items": [
+                        {
+                            "name": "VIDEO_BLOCK",
+                            "comment": "Video signal amplitude of the cells in the group, coded according to the resolution defined in I240/048",
+                            "type": "fixed_bytes",
+                            "length": 64,
+                            "data_type": "bin"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "number": "052",
+            "name": "Video Block High Data Volume",
+            "comment": "Contains a group of video cells corresponding to a video radial; all cells have the same size in azimuth and range and are consecutive in range. Used for a high data volume, up to 65024 bytes (REP at most 254).",
+            "type": "item",
+            "data_fields": [
+                {
+                    "name": "Video Block High Data Volume",
+                    "type": "repetitive",
+                    "items": [
+                        {
+                            "name": "VIDEO_BLOCK",
+                            "comment": "Video signal amplitude of the cells in the group, coded according to the resolution defined in I240/048",
+                            "type": "fixed_bytes",
+                            "length": 256,
+                            "data_type": "bin"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "number": "140",
+            "name": "Time of Day",
+            "comment": "Absolute time stamping expressed as UTC.",
+            "type": "item",
+            "data_fields": [
+                {
+                    "name": "Time of Day",
+                    "comment": "Reset to zero each day at midnight",
+                    "type": "fixed_bytes",
+                    "length": 3,
+                    "data_type": "uint",
+                    "lsb": 0.0078125
+                }
+            ]
+        }
+    ]
+}

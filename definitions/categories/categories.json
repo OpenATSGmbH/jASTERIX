@@ -281,6 +281,17 @@
             }
         }
     },
+    "240":{
+        "comment":"Category 240 Radar Video Transmission",
+        "default_edition":"1.3",
+        "editions":{
+            "1.3":{
+                "document":"EUROCONTROL-SPEC-0149-240",
+                "date":"May 2015",
+                "file":"240/cat240_1.3.json"
+            }
+        }
+    },
     "247":{
         "comment":"Category 247 Version Number Exchange",
         "default_edition":"1.2",
