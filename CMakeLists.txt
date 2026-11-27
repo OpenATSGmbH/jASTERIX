@@ -144,7 +144,7 @@ message("Installing using prefix: ${CMAKE_INSTALL_PREFIX}")
 #install(DIRECTORY "specifications" DESTINATION jasterix)
 
 set_target_properties(jasterix PROPERTIES PUBLIC_HEADER
-    "include/jasterix/jasterix.h;include/jasterix/category.h;include/jasterix/editionbase.h;include/jasterix/edition.h;include/jasterix/refedition.h;include/jasterix/ref.h;include/jasterix/spfedition.h;include/jasterix/spf.h;include/jasterix/frameparser.h;include/jasterix/record.h;include/jasterix/iteminfo.h;include/jasterix/itemparserbase.h;${CMAKE_CURRENT_BINARY_DIR}/include/jasterix/global.h")
+    "include/jasterix/jasterix.h;include/jasterix/category.h;include/jasterix/editionbase.h;include/jasterix/edition.h;include/jasterix/refedition.h;include/jasterix/ref.h;include/jasterix/spfedition.h;include/jasterix/spf.h;include/jasterix/frameparser.h;include/jasterix/record.h;include/jasterix/iteminfo.h;include/jasterix/itemparserbase.h;${CMAKE_CURRENT_BINARY_DIR}/include/jasterix/global.h;lib/json.hpp")
 
 #install (TARGETS jasterix DESTINATION lib)
 install (TARGETS jasterix DESTINATION lib
