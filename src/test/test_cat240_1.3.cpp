@@ -134,3 +134,34 @@ TEST_CASE("jASTERIX CAT240 1.3", "[jASTERIX CAT240]")
 
     loginf << "cat240 test: end" << logendl;
 }
+
+static size_t decode_cat240_errors(const std::vector<char>& data)
+{
+    jASTERIX::jASTERIX jasterix(definition_path, false, false, false);
+    jasterix.category(240)->setCurrentEdition("1.3");
+
+    size_t errors = 0;
+
+    jasterix.decodeData(data.data(), data.size(),
+                        [&](std::unique_ptr<nlohmann::json>, size_t, size_t, size_t,
+                            size_t num_errors) { errors = num_errors; },
+                        false);
+    return errors;
+}
+
+TEST_CASE("jASTERIX CAT240 1.3 Video Summary truncated", "[jASTERIX CAT240]")
+{
+    // REP 18, but only 4 characters before the data block ends
+    const std::vector<char> data = {char(0xf0), 0x00, 0x0c, char(0xd0), 0x07, 0x2a, 0x01,
+                                    0x12,       'T',  'E',  'S',        'T'};
+
+    REQUIRE(decode_cat240_errors(data) > 0);
+}
+
+TEST_CASE("jASTERIX CAT240 1.3 Video Summary non-ASCII", "[jASTERIX CAT240]")
+{
+    const std::vector<char> data = {char(0xf0), 0x00, 0x0c, char(0xd0), 0x07, 0x2a, 0x01,
+                                    0x04,       'T',  char(0xe9), 'S',  'T'};
+
+    REQUIRE(decode_cat240_errors(data) > 0);
+}

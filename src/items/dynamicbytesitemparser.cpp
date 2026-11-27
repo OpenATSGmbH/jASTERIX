@@ -18,6 +18,7 @@
 #include "dynamicbytesitemparser.h"
 
 #include "logger.h"
+#include "string_conv.h"
 #include "traced_assert.h"
 
 using namespace std;
@@ -38,11 +39,13 @@ DynamicBytesItemParser::DynamicBytesItemParser(const nlohmann::json& item_defini
 
     if (item_definition.contains("data_type"))
     {
-        data_type_ = item_definition.at("data_type").get<std::string>();
+        const std::string data_type = item_definition.at("data_type").get<std::string>();
 
-        if (data_type_ != "string")
+        if (data_type != "string")
             throw runtime_error("dynamic bytes item '" + name_ + "' with unknown data type '" +
-                                data_type_ + "'");
+                                data_type + "'");
+
+        output_string_ = true;
     }
 
     substract_previous_ = item_definition.contains("substract_previous") &&
@@ -111,9 +114,17 @@ size_t DynamicBytesItemParser::parseItem(const char* data, size_t index, size_t 
 
     //traced_assert(!target.contains(name_));  // hot path - O(N) json lookup per field
 
-    if (data_type_ == "string")
+    if (output_string_)
     {
+        if (index > total_size || length > total_size - index)
+            throw runtime_error("dynamic bytes item '" + name_ + "': would read " +
+                                to_string(length) + " bytes at index " + to_string(index) +
+                                " but total_size is " + to_string(total_size));
+
         std::string str_value(reinterpret_cast<const char*>(data) + index, length);
+
+        if (!isASCII(str_value))
+            throw runtime_error("dynamic bytes item '" + name_ + "' string contains non-ascii chars");
 
         if (debug)
             loginf << "parsed dynamic bytes item '" + name_ + "' index " << index << " length "
