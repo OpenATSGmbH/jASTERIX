@@ -75,7 +75,7 @@ std::vector<char> hex2bin(const std::string& hex)
     data.reserve(hex.size() / 2);
 
     for (size_t cnt = 0; cnt < hex.size(); cnt += 2)
-        data.push_back(static_cast<char>(stoul(hex.substr(cnt, 2), nullptr, 16)));
+        data.push_back(static_cast<char>(stoull(hex.substr(cnt, 2), nullptr, 16)));
 
     return data;
 }

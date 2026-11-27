@@ -27,6 +27,8 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 # Instruct CMake to run moc automatically when needed.
 #set(CMAKE_AUTOMOC ON)
 
+option(BUILD_SHARED_LIBS "Build jASTERIX as a shared library" ON)
+
 add_library(jasterix "")
 
 set (USE_LOG4CPP true)
@@ -70,6 +72,11 @@ message("  LOG4CPP_LIBRARY: ${LOG4CPP_LIBRARIES}")
 target_link_libraries ( jasterix
     ${LOG4CPP_LIBRARIES}
     )
+
+IF (WIN32)
+# log4cpp/config-MinGW32.h does not define int64_t
+target_compile_definitions(jasterix PUBLIC LOG4CPP_HAVE_INT64_T)
+ENDIF()
 ENDIF()
 
 IF (USE_OPENSSL)
@@ -82,7 +89,12 @@ target_link_libraries ( jasterix
     )
 ENDIF()
 
+IF (WIN32)
+# oneTBB on Windows is tbb12, the own FindTBB.cmake searches tbb: use the oneTBB config
+find_package(TBB CONFIG REQUIRED)
+ELSE()
 find_package(TBB REQUIRED)
+ENDIF()
 
 find_package ( LibArchive REQUIRED )
 message("  LibArchive_INCLUDE_DIRS: ${LibArchive_INCLUDE_DIRS}")
@@ -132,7 +144,7 @@ message("Installing using prefix: ${CMAKE_INSTALL_PREFIX}")
 #install(DIRECTORY "specifications" DESTINATION jasterix)
 
 set_target_properties(jasterix PROPERTIES PUBLIC_HEADER
-    "include/jasterix/jasterix.h;include/jasterix/category.h;include/jasterix/editionbase.h;include/jasterix/edition.h;include/jasterix/refedition.h;include/jasterix/ref.h;include/jasterix/spfedition.h;include/jasterix/spf.h;include/jasterix/frameparser.h;include/jasterix/record.h;include/jasterix/iteminfo.h;include/jasterix/itemparserbase.h;${CMAKE_CURRENT_BINARY_DIR}/include/jasterix/global.h")
+    "include/jasterix/jasterix.h;include/jasterix/category.h;include/jasterix/editionbase.h;include/jasterix/edition.h;include/jasterix/refedition.h;include/jasterix/ref.h;include/jasterix/spfedition.h;include/jasterix/spf.h;include/jasterix/frameparser.h;include/jasterix/record.h;include/jasterix/iteminfo.h;include/jasterix/itemparserbase.h;${CMAKE_CURRENT_BINARY_DIR}/include/jasterix/global.h;lib/json.hpp")
 
 #install (TARGETS jasterix DESTINATION lib)
 install (TARGETS jasterix DESTINATION lib

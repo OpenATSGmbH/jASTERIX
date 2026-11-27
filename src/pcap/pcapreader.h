@@ -102,7 +102,7 @@ class PcapReader
     // called by the libpcap packet handler
     void digestPacket(const struct pcap_pkthdr* pkthdr, const unsigned char* packet);
     void digestEther(int ether_type, const struct pcap_pkthdr* pkthdr,
-                     const unsigned char* packet, unsigned long data_offs);
+                     const unsigned char* packet, std::uint64_t data_offs);
     void addPayload(const Signature& signature, const unsigned char* data, size_t len,
                     double timestamp);
 

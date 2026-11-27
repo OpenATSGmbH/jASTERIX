@@ -17,6 +17,7 @@
 
 #include "fixedbytesitemparser.h"
 
+#include <cstdint>
 #include <iostream>
 
 #include "logger.h"
@@ -287,12 +288,12 @@ size_t FixedBytesItemParser::encodeItem(const nlohmann::json& source, char* targ
     }
     else if (data_type_ == "int")
     {
-        long int data_int;
+        std::int64_t data_int;
 
         if (has_lsb_)
             data_int = llround(value.get<double>() / lsb_);
         else
-            data_int = value.get<long int>();
+            data_int = value.get<std::int64_t>();
 
         // mask to length_ bytes for two's complement
         size_t data_uint = static_cast<size_t>(data_int) & ((size_t(1) << (length_ * 8)) - 1);

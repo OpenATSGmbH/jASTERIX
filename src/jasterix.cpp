@@ -26,6 +26,7 @@
 #include "frameparsertask.h"
 #include "logger.h"
 #include "pcap/pcapreader.h"
+#include "time_utc.h"
 #include "traced_assert.h"
 
 #include <malloc.h>
@@ -153,7 +154,7 @@ jASTERIX::jASTERIX(const std::string& definition_path, bool print, bool debug,
         {
             cat = 256;  // impossible number
             cat_str = cat_def_it.key();
-            cat = static_cast<unsigned int>(stoul(cat_str));
+            cat = static_cast<unsigned int>(stoull(cat_str));
 
             if (cat > 255 || category_definitions_.count(cat) != 0)
                 throw invalid_argument("jASTERIX called with wrong asterix category '" + cat_str +
@@ -1168,7 +1169,7 @@ void jASTERIX::stampPCAPTimes(nlohmann::json& data_blocks, bool with_time_string
         // seconds since UTC midnight and the UTC date as YYYYMMDD, same keys as the framings
         time_t secs = static_cast<time_t>(std::floor(ts));
         struct tm tm_utc;
-        gmtime_r(&secs, &tm_utc);
+        TimeUTC::toTm(secs, tm_utc);
 
         data_block["recording_time"] = tm_utc.tm_hour * 3600.0 + tm_utc.tm_min * 60.0
                                        + tm_utc.tm_sec + (ts - static_cast<double>(secs));

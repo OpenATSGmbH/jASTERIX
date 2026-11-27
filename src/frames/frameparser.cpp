@@ -29,6 +29,7 @@
 #include "jasterix.h"
 #include "logger.h"
 #include "string_conv.h"
+#include "time_utc.h"
 #include "traced_assert.h"
 
 using namespace std;
@@ -383,16 +384,16 @@ bool FrameParser::parseWallTime(const std::string& text, int& year, int& month, 
 
 unsigned int FrameParser::dateYYYYMMDD(int year, int month, int day, int add_days)
 {
-    // timegm normalizes an overflowing day of month into the following months
+    // TimeUTC::fromTm normalizes an overflowing day of month into the following months
     struct tm tm_date {};
     tm_date.tm_year = year - 1900;
     tm_date.tm_mon = month - 1;
     tm_date.tm_mday = day + add_days;
 
-    time_t secs = timegm(&tm_date);
+    time_t secs = TimeUTC::fromTm(tm_date);
 
     struct tm tm_utc;
-    gmtime_r(&secs, &tm_utc);
+    TimeUTC::toTm(secs, tm_utc);
 
     return static_cast<unsigned int>((tm_utc.tm_year + 1900) * 10000 + (tm_utc.tm_mon + 1) * 100
                                      + tm_utc.tm_mday);

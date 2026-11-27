@@ -18,6 +18,7 @@
 #include "fixedbitsitemparser.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <boost/dynamic_bitset.hpp>
 
 #include "logger.h"
@@ -582,7 +583,7 @@ size_t FixedBitsItemParser::parseItem(const char* data, size_t index, size_t siz
                 loginf << "parsing fixed bits item '" << name_ << "' with start bit " << start_bit_
                        << " length " << bit_length_ << " value " << (size_t)tmp8 << logendl;
 
-            long int data_lint;
+            std::int64_t data_lint;
 
             if ((tmp8 & (neg_bitmask8)) != 0)
                 data_lint = tmp8 | ~((neg_bitmask8) - 1);
@@ -670,11 +671,11 @@ size_t FixedBitsItemParser::encodeItem(const nlohmann::json& source, char* targe
         }
         else if (data_type_ == "int")
         {
-            long int raw;
+            std::int64_t raw;
             if (has_lsb_)
                 raw = llround(source.at(name_).get<double>() / lsb_);
             else
-                raw = source.at(name_).get<long int>();
+                raw = source.at(name_).get<std::int64_t>();
 
             unsigned char masked = static_cast<unsigned char>(raw & ((1 << bit_length_) - 1));
             byte_ref |= static_cast<unsigned char>((masked << start_bit_) & bitmask1);
@@ -729,11 +730,11 @@ size_t FixedBitsItemParser::encodeItem(const nlohmann::json& source, char* targe
         }
         else if (data_type_ == "int")
         {
-            long int raw;
+            std::int64_t raw;
             if (has_lsb_)
                 raw = llround(source.at(name_).get<double>() / lsb_);
             else
-                raw = source.at(name_).get<long int>();
+                raw = source.at(name_).get<std::int64_t>();
 
             unsigned int masked = static_cast<unsigned int>(raw & ((1u << bit_length_) - 1));
             tmp4 |= (masked << start_bit_) & bitmask4;
@@ -795,11 +796,11 @@ size_t FixedBitsItemParser::encodeItem(const nlohmann::json& source, char* targe
         }
         else if (data_type_ == "int")
         {
-            long int raw;
+            std::int64_t raw;
             if (has_lsb_)
                 raw = llround(source.at(name_).get<double>() / lsb_);
             else
-                raw = source.at(name_).get<long int>();
+                raw = source.at(name_).get<std::int64_t>();
 
             size_t masked = static_cast<size_t>(raw) & ((size_t(1) << bit_length_) - 1);
             tmp8 |= (masked << start_bit_) & bitmask8;

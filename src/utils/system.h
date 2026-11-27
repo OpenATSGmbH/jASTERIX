@@ -17,8 +17,14 @@
  
 #pragma once
 
+#ifdef _WIN32
+#include <windows.h>
+#include <psapi.h>
+#else
 #include <sys/resource.h>
+#endif
 
+#include <cstdint>
 #include <fstream>
 #include <limits>
 #include <sstream>
@@ -35,6 +41,14 @@ namespace System
 {
 float getProcessRAMinGB()
 {
+#ifdef _WIN32
+    PROCESS_MEMORY_COUNTERS info;
+    if (!GetProcessMemoryInfo(GetCurrentProcess(), &info, sizeof(info)))
+        return 0;
+
+    // maximum working set in bytes
+    return info.PeakWorkingSetSize / gigabyte;
+#else
     struct rusage info;
     getrusage(RUSAGE_SELF, &info);
 
@@ -43,17 +57,26 @@ float getProcessRAMinGB()
     //    of physical memory that processes used simultaneously.
 
     return (info.ru_maxrss) / megabyte;
+#endif
 }
 
 float getFreeRAMinGB()
 {
+#ifdef _WIN32
+    MEMORYSTATUSEX status;
+    status.dwLength = sizeof(status);
+    if (!GlobalMemoryStatusEx(&status))
+        return 0;
+
+    return status.ullAvailPhys / gigabyte;
+#else
     std::string token;
     std::ifstream file("/proc/meminfo");
     while (file >> token)
     {
         if (token == "MemAvailable:")
         {
-            unsigned long mem;
+            std::uint64_t mem;
 
             if (file >> mem)  // returns in kB
             {
@@ -68,6 +91,7 @@ float getFreeRAMinGB()
         file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     }
     return 0;  // nothing found
+#endif
 }
 
 }  // namespace System
